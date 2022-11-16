@@ -1,12 +1,15 @@
 #include "server.h"
+#include "signal.h"
 
-int main (){
-    video_list vds = get_videos();
-    for (int i = 0; i < vds.video_count; i++){
-        printf("%s\n", vds.videos[i]);
+int main (int argc, char *argv[]){
+    if(argc < 2) {
+        printf("Server port required. Aborting...\n");
+        exit(EXIT_FAILURE);
     }
 
-    return(0);
+    //Start the server
+    run_server(atoi(argv[1]));
+    return 0;
 }
 
 
@@ -44,6 +47,10 @@ void run_server(int port) {
             if(isock < 0) 
                 printf("Error accepting client request\n");
             
+            /* Temp, immediately send video to client*/
+            printf("About to send video\n");
+            send_video(isock);
+
             //Add the socket to the master set
             FD_SET(isock, &master_set);
             fdmax = max(isock, fdmax);
@@ -130,7 +137,28 @@ video_list get_videos(){
     return vds;
 }
 
+void send_video(int port) {
+    const char READ_ONLY_MODE [] = "r";
+    video_list vds = get_videos();
+    char *video_name = vds.videos[0];
+    FILE *f = fopen(video_name, READ_ONLY_MODE);
 
+    printf("Opened file %s \n", video_name);
+
+    fseek(f, 0, SEEK_END);
+    int file_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    printf("File size was %d\n", file_size);
+
+    char *file_contents = malloc(file_size);
+    fread(file_contents, 1, file_size, f);
+    send(port, file_contents, file_size, 0);
+
+    for(int i = 0; i < 1000; i++) 
+        printf("%c", file_contents[i]);
+    // printf("%s\n", file_contents);
+    printf("Should have sent video\n");
+}
 
 
 int max(int a, int b) {
