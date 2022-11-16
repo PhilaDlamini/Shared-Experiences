@@ -21,5 +21,6 @@ typedef struct video_list video_list;
 
 void run_server(int port);
 int make_socket(int port);
+void send_video(int port);
 video_list get_videos();
 int max(int a, int b);
