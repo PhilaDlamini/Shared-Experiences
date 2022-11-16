@@ -91,6 +91,8 @@ public class Home {
         tf.setStyle("-fx-border-radius: 20; -fx-background-radius: 20;");
 
 
+       
+
         Image image = new Image("file:///C:/Users/phila/cs112/client/demo/src/main/java/com/example/send.png");
         ImageView img = new ImageView(image);
         img.setFitHeight(32);
@@ -152,7 +154,7 @@ public class Home {
     public static VBox getVideoPlayer() {
     
         //Instantiating the Media player class 
-        Media media =  new Media("file:///C:/Users/phila/cs112/client/demo/src/main/java/com/example/mkbhd.mp4");    
+        Media media =  new Media("file:///C:/Users/phila/cs112/client/src/main/java/com/example/mkbhd.mp4");    
         MediaPlayer mediaPlayer = new MediaPlayer(media); 
         mediaPlayer.setOnError(()->
             System.out.println("media error"+mediaPlayer.getError().toString())
