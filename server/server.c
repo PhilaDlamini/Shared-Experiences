@@ -152,7 +152,7 @@ void process(char *data, int fd) {
         write(fd, z, 1); //Movie content type
 
         long size;
-        char* contents = get_video("5sec.mp4", &size);
+        char* contents = get_video("movieA.mp4", &size);
         size = htonll(size);
         printf("Movie size was %ld\n", htonll(size));
         write(fd, &size, sizeof(long));
