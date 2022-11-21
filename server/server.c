@@ -37,11 +37,8 @@ void run_server(int port) {
     
     while (1){
         video_list vds = get_videos();
-        fprintf(stderr, "PLEASE PRINT\n");
-        fprintf(stderr, "Video list size is %d\n", vds.video_count);
         /* Index of the vds.movies array that has the vote-winning movie */
         int video_index = voting(vds, clientIDs, master_socket, &master_set, &fdmax);
-        fprintf(stderr, "Done with voting\n");
         play_video(vds, clientIDs, video_index, master_socket, &master_set, &fdmax);
     }
 
@@ -51,7 +48,6 @@ void run_server(int port) {
 
 void play_video(video_list vds,  List clientIDs, int to_play_index, 
                 int master_socket, fd_set *master_set, int *fdmax){
-    fprintf(stderr, "In play_video\n");
     Message movie_selected_message;
     movie_selected_message.type = MOVIE_SELECTED;
     movie_selected_message.data[0] = to_play_index;
@@ -65,9 +61,7 @@ void play_video(video_list vds,  List clientIDs, int to_play_index,
     
     Message movie_content_message; 
     movie_content_message.type = MOVIE_CONTENT;
-    fprintf(stderr, "Video size is %lu\n", video_size);
     long video_size_to_send =  htonll(video_size);
-    fprintf(stderr, "Video size to send is %lu\n", video_size_to_send);
     memcpy(movie_content_message.data, &video_size_to_send, sizeof(long));
     
     fd_set write_set = *master_set;
@@ -100,7 +94,6 @@ void play_video(video_list vds,  List clientIDs, int to_play_index,
         } else {
             for(int i = 0; i <= *fdmax; i++) {
                 if(FD_ISSET(i, &temp_set)) {
-                    printf("reading from socket\n");
                     int n = read(i, buffer, sizeof(char));             
                     if (n > 0) {
                         handle_download(clientIDs, master_set, buffer, i, &downloaded_count, 
@@ -118,7 +111,8 @@ void play_video(video_list vds,  List clientIDs, int to_play_index,
     Message start_message; 
     start_message.type = START;
 
-    long time_since_video_start =  htonll(video_start_time.tv_sec);
+    //long time_since_video_start =  htonll(video_start_time.tv_sec);
+    long time_since_video_start = 0;
     memcpy(start_message.data, &time_since_video_start, sizeof(long));
     printf("About to send start to all\n");
     send_to_all(*master_set, *fdmax, start_message, 1 + sizeof(long));
@@ -326,7 +320,11 @@ void handle_playing(List clientIDs, fd_set *master_set, char *data, int curr_por
 
         Message start_message; 
         start_message.type = START;
-        long time_since_video_start =  htonll(video_start_time.tv_sec);
+        struct timespec curr_time;
+        timespec_get(&curr_time, TIME_UTC);
+
+        long time_since_video_start =  curr_time.tv_sec - video_start_time.tv_sec;
+        time_since_video_start = htonll(video_start_time.tv_sec);
         memcpy(start_message.data, &time_since_video_start, sizeof(long));
         n = write(curr_port, (char *) &start_message, 1 + sizeof(long));
     } else if (read_message.type == GOODBYE){
