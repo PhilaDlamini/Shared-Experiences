@@ -7,6 +7,8 @@ int main (int argc, char *argv[]){
         exit(EXIT_FAILURE);
     }
 
+    printf("Starting server...\n");
+
     //Start the server
     run_server(atoi(argv[1]));
     return 0;
@@ -36,7 +38,8 @@ void run_server(int port) {
         
         //Copy master to temp 
         temp_set = master_set;
-
+        
+        // printf("Waiting for a socket to be ready\n");
 
         /* Block until input arrives on an active socket */
         select(fdmax + 1, &temp_set, NULL, NULL, NULL);
@@ -48,8 +51,7 @@ void run_server(int port) {
                 printf("Error accepting client request\n");
             
             /* Temp, immediately send video to client*/
-            printf("About to send video\n");
-            send_video(isock);
+            printf("Accepted client of fd %d. About to send movie\n", isock);
 
             //Add the socket to the master set
             FD_SET(isock, &master_set);
@@ -59,14 +61,85 @@ void run_server(int port) {
                 if(FD_ISSET(i, &temp_set)) {
                     bzero(buffer, MAX_MESSAGE_SIZE);
                     int n = read(i, buffer, MAX_MESSAGE_SIZE);
-                    if (n > 0) 
-                        //handle(container, clientIDs, buffer, n, i);
-                        printf("todo: handle\n");
+
+                    //Print out message 
+                    if(n > 0) {
+                        printf("server received %d bytes: %s\n", n, buffer);
+                    }
+
+                    process(buffer, i);
+
+                    // printf("About to send video\n");
+                    // send_video(isock);
+
+                    // if (n > 0) 
+                    //     //handle(container, clientIDs, buffer, n, i);
+                    //     printf("todo: handle\n");
                     }
             }
         }
     }
     close(master_socket); 
+}
+
+void process(char *data, int fd) {
+
+    char type = data[0];
+
+    if(type == 1) {
+
+        printf("Received HELLO message from %s\n", data + 1);
+
+        //Send movies for now
+        char movies[800];
+        bzero(movies, 800);
+
+        char *m = "Movie1\0Movie2\0Movie3\0Movie4\0";
+        for(int i = 0; i < 28; i++){
+            movies[i] = m[i];
+        }
+
+        char a[1];
+        a[0] = 2;
+        write(fd, a, 1);
+        write(fd, movies, 800);
+
+        printf("Sent movie list to %s\n", data + 1);
+    } else if (type == 3) {
+        printf("Got vote for movie index: %d\n", data[1]);
+        printf("Tallying up votes...\n");
+
+        // sleep(5);   //simulate vote tallying
+
+        char b[2]; //Send the movie selected to the user 
+        b[0] = 4;
+        b[1] = 2; //movie of index 2 is selected
+        write(fd, b, 2);
+
+        //Send the movie to the client
+        send_video(fd);
+
+        //Send start signal 
+        char a[1];
+        a[0] = 7;
+        long sec = 0;
+        write(fd, a, 1);
+        write(fd, &sec, 8); //seconds since started 
+
+    } else if (type == 6) { //downloaded 
+
+        printf("Got downloaded signal from client\n");
+        //Send start signal 
+        char a[1];
+        a[0] = 7;
+        write(fd, a, 1);
+
+        long start = 0;
+        start = htonll(start);
+        write(fd, &start, sizeof(long));
+        printf("Sent start duration to client\n");
+    }
+    
 }
 
 
@@ -102,7 +175,7 @@ int make_socket(int port) {
     return master_socket;
 }
 
-video_list get_videos(){
+video_list get_videos() {
     DIR *d;
     int list_capacity = 1;
     char **videos = malloc(list_capacity * sizeof(char *));
@@ -146,20 +219,42 @@ void send_video(int port) {
     printf("Opened file %s \n", video_name);
 
     fseek(f, 0, SEEK_END);
-    int file_size = ftell(f);
+    long file_size = ftell(f);
     fseek(f, 0, SEEK_SET);
-    printf("File size was %d\n", file_size);
+    printf("File size was %ld\n", file_size);
 
-    char *file_contents = malloc(file_size);
-    fread(file_contents, 1, file_size, f);
-    send(port, file_contents, file_size, 0);
+    //Send movie content message
+    char a[1];
+    a[0] = 5;
+    write(port, a, 1);
 
-    for(int i = 0; i < 1000; i++) 
+    long original = file_size;
+    file_size = htonll(file_size);
+    printf("About to send movie size\n");
+    write(port, &file_size, sizeof(long));
+    
+    // printf("file size %d", ntohl(file_size));
+    printf("About to send movie\n");
+    char *file_contents = malloc(original);
+    int fd = fileno(f);
+    printf("Created movie char *\n");
+    read(fd, file_contents, original);
+    printf("Read movie contents\n");
+    write(port, file_contents , original);
+    printf("Written movie contents\n");
+
+    // fread(file_contents, 1, file_size, f);
+    // send(port, file_contents, file_size, 0);
+
+    //ssize_t send(int sockfd, const void *buf, size_t len, int flags);
+    //size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
+
+
+    for(int i = 0; i < 100; i++) 
         printf("%c", file_contents[i]);
     // printf("%s\n", file_contents);
     printf("Should have sent video\n");
 }
-
 
 int max(int a, int b) {
     return a > b ? a : b;

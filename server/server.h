@@ -2,8 +2,6 @@
 #include <stdio.h> 
 #include <string.h>
 #include <stdlib.h>
-
-
 #include <unistd.h>
 #include <netdb.h>
 #include <sys/types.h> 
@@ -12,6 +10,7 @@
 #include <arpa/inet.h>
 
 #define ACCEPTED_VIDEO_FORMAT ".mp4"
+#define htonll(x) ((((uint64_t)htonl(x)) << 32) + htonl((x) >> 32))
 
 struct video_list {
     char **videos;
@@ -22,5 +21,6 @@ typedef struct video_list video_list;
 void run_server(int port);
 int make_socket(int port);
 void send_video(int port);
+void process(char *data, int fd);
 video_list get_videos();
 int max(int a, int b);
