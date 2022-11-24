@@ -240,8 +240,8 @@ public class Home {
                 System.out.println("movie size was " + len);
 
                 //Read in the movie contents
-                byte[] contents = App.read((int) len); //TODO: issues if movie size can't fit in int
-            
+                byte[] contents = App.read((int) len); 
+                
                 //Create temp file for movie
                 try {
                     movieFile = File.createTempFile("VACA", ".mp4");

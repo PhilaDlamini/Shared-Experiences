@@ -1,26 +1,341 @@
 #include "server.h"
+#include "list.h"
 
-/*
- * Processes each message according to the message type
- */
-int main(int argc, char *argv[]) {
 
+
+int main (int argc, char *argv[]){
     if(argc < 2) {
         printf("Server port required. Aborting...\n");
         exit(EXIT_FAILURE);
     }
-
     //Start the server
-    start_server(atoi(argv[1]));
+    run_server(atoi(argv[1]));
     return 0;
 }
 
-/*
- * If the message is complete, process it and then clear from the buffer
- * That is, call the destructor for it :) 
- */
+void run_server(int port) {
+    struct sockaddr_in caddr;
+    int clen, isock = 0;
+    int master_socket = make_socket(port);
 
-//Makes the socket
+    //Initialize the set of active fds
+    int MAX_MESSAGE_SIZE = 1024;
+    char buffer[MAX_MESSAGE_SIZE];
+    fd_set master_set;
+    fd_set read_set;
+    fd_set write_set;
+    FD_ZERO(&master_set);
+    FD_ZERO(&write_set);
+    FD_ZERO(&read_set);
+
+    FD_SET(master_socket, &master_set); 
+    int fdmax = master_socket;
+
+    // signal(SIGPIPE, SIG_IGN);
+
+    List clientIDs = List_new();
+    
+    while (1){
+        video_list vds = get_videos();
+        /* Index of the vds.movies array that has the vote-winning movie */
+        int video_index = voting(vds, clientIDs, master_socket, &master_set, &fdmax);
+        play_video(vds, clientIDs, video_index, master_socket, &master_set, &fdmax);
+    }
+
+    close(master_socket); 
+}
+
+
+void play_video(video_list vds,  List clientIDs, int to_play_index, 
+                int master_socket, fd_set *master_set, int *fdmax){
+    Message movie_selected_message;
+    movie_selected_message.type = MOVIE_SELECTED;
+    movie_selected_message.data[0] = to_play_index;
+    
+    int test;
+    send_to_all(*master_set, *fdmax, movie_selected_message, 2);
+
+    long video_size;
+    char *video_contents = load_video(vds.videos[to_play_index], &video_size);
+    
+    
+    Message movie_content_message; 
+    movie_content_message.type = MOVIE_CONTENT;
+    long video_size_to_send =  htonll(video_size);
+    memcpy(movie_content_message.data, &video_size_to_send, sizeof(long));
+    
+    fd_set write_set = *master_set;
+    if (clientIDs->size > 0){
+        select(*fdmax + 1, NULL, &write_set, NULL, NULL);
+        for(int i = 0; i <= *fdmax; i++) {
+            if(FD_ISSET(i, &write_set)){
+                int n = write(i, (char *) &movie_content_message, 1 + sizeof(long));
+                n = write(i, video_contents, video_size);
+            }
+        }
+    }
+
+    struct sockaddr_in caddr;
+    int downloaded_count = 0, clen = 0, isock = 0;
+    char buffer [MAX_MESSAGE_LENGTH];
+
+    while (downloaded_count < clientIDs->size){
+        fd_set temp_set = *master_set;
+        /* Block until input arrives on an active socket */
+        select(*fdmax + 1, &temp_set, NULL, NULL, NULL);
+
+        /* Service all sockets with input pending */
+        if(FD_ISSET(master_socket, &temp_set)) {
+            isock = accept(master_socket, (struct sockaddr *) &caddr, &clen);
+            if(isock < 0) 
+                printf("Error accepting client request\n");
+            FD_SET(isock, master_set);
+            *fdmax = max(isock, *fdmax);
+        } else {
+            for(int i = 0; i <= *fdmax; i++) {
+                if(FD_ISSET(i, &temp_set)) {
+                    int n = read(i, buffer, sizeof(char));             
+                    if (n > 0) {
+                        handle_download(clientIDs, master_set, buffer, i, &downloaded_count, 
+                                        movie_content_message, 
+                                        video_contents, video_size);
+                    }
+                    bzero(buffer, MAX_MESSAGE_LENGTH);
+                }
+            }
+        }
+    }
+
+    struct timespec video_start_time;
+    timespec_get(&video_start_time, TIME_UTC);
+    Message start_message; 
+    start_message.type = START;
+
+    //long time_since_video_start =  htonll(video_start_time.tv_sec);
+    long time_since_video_start = 0;
+    memcpy(start_message.data, &time_since_video_start, sizeof(long));
+    printf("About to send start to all\n");
+    send_to_all(*master_set, *fdmax, start_message, 1 + sizeof(long));
+
+    int end_count = 0;
+    while (end_count < clientIDs->size){
+        fd_set temp_set = *master_set;
+        /* Block until input arrives on an active socket */
+        select(*fdmax + 1, &temp_set, NULL, NULL, NULL);
+
+        /* Service all sockets with input pending */
+        if(FD_ISSET(master_socket, &temp_set)) {
+            isock = accept(master_socket, (struct sockaddr *) &caddr, &clen);
+            if(isock < 0) 
+                printf("Error accepting client request\n");
+            FD_SET(isock, master_set);
+            *fdmax = max(isock, *fdmax);
+        } else {
+            for (int i = 0; i <= *fdmax; i++) {
+                if(FD_ISSET(i, &temp_set)) {
+                    int n = read(i, buffer, MAX_MESSAGE_LENGTH);             
+                    if (n > 0) {
+                        int n = read(i, buffer, sizeof(char));             
+                        if (n > 0) {
+                            handle_playing(clientIDs, master_set, buffer, i, &downloaded_count, 
+                                           movie_content_message, video_contents, 
+                                           video_size, video_start_time);
+                        }
+                        bzero(buffer, MAX_MESSAGE_LENGTH);
+                    }
+                }
+            }
+        }
+    }
+    free(video_contents);
+    return;
+}
+
+
+void send_to_all(fd_set master_set, int fdmax, Message to_send, int message_size){
+    fd_set write_set = master_set;
+    select(fdmax + 1, NULL, &write_set, NULL, NULL);
+
+    printf("Message size is %d\n", message_size);
+
+    for(int i = 0; i <= fdmax; i++) {
+        if(FD_ISSET(i, &write_set)){
+            fprintf(stderr, "Type is: %c\n", to_send.type + '0');
+            int n = write(i, (char *) &to_send, message_size);
+        }
+    }
+}
+
+
+int voting(video_list vds, List clientIDs, int master_socket, fd_set *master_set, int *fdmax){
+    Message movie_list_message;
+    movie_list_message.type = MOVIES;
+    bzero(movie_list_message.data, 800);
+    
+    /* TODO: Error if over 800 chars */
+    
+    /* 
+     * Create a string representation of the list of all available videos that
+     * can be sent to clients
+     */
+    int video_string_length = 0;
+    int i = 0;
+    for (i = 0; i < vds.video_count; i++){
+        strcpy(movie_list_message.data + video_string_length, vds.videos[i]);
+        video_string_length += strlen(vds.videos[i]) + 1; /* + 1 for \0 */
+    }
+    bool voting_active = true;
+    
+
+    fd_set write_set;
+    write_set = *master_set;
+    if (clientIDs->size > 0){
+        send_to_all(*master_set, *fdmax, movie_list_message, 
+                    801);
+    }
+
+    /* Tracks clients who've voted and prevents one client making over 1 vote */
+    List voted = List_new();
+    int *vote_tally = malloc(vds.video_count * sizeof(int));
+    bzero(vote_tally, vds.video_count * sizeof(int));
+    
+    char buffer[MAX_MESSAGE_LENGTH ];
+    struct sockaddr_in caddr;
+    int clen = 0, isock = 0;
+
+    struct timespec voting_start_time;
+    timespec_get(&voting_start_time, TIME_UTC);
+
+    while (voting_active){
+        printf("In voting loop\n");
+        fd_set temp_set = *master_set;
+        /* Block until input arrives on an active socket */
+        select(*fdmax + 1, &temp_set, NULL, NULL, NULL);
+
+        /* Service all sockets with input pending */
+        if(FD_ISSET(master_socket, &temp_set)) {
+            printf("connected\n");
+            isock = accept(master_socket, (struct sockaddr *) &caddr, &clen);
+            if(isock < 0) 
+                printf("Error accepting client request\n");
+            FD_SET(isock, master_set);
+            *fdmax = max(isock, *fdmax);
+        } else {
+            for(int i = 0; i <= *fdmax; i++) {
+                if(FD_ISSET(i, &temp_set)) {
+                    printf("reading from socket\n");
+                    bzero(buffer, MAX_MESSAGE_LENGTH );
+                    int n = read(i, buffer, MAX_MESSAGE_LENGTH );             
+                    if (n > 0) {
+                        handle_voting(clientIDs, voted, movie_list_message, master_set,
+                                      video_string_length, buffer, vote_tally, i);
+                    }
+                }
+            }
+        }
+        struct timespec curr_time;
+        timespec_get(&curr_time, TIME_UTC);
+        if ((curr_time.tv_sec - voting_start_time.tv_sec) > SECONDS_TO_VOTE ||
+            (voted->size == clientIDs->size && voted->size >= 1))
+        {
+            fprintf(stderr, "In voting exit\n");
+            voting_active = false;
+        }
+    }
+
+    int max_votes = 0, max_index = 0;
+    for (int i = 0; i < vds.video_count; i++){
+        if (vote_tally[i] > max_votes){
+            max_votes = vote_tally[i];
+            max_index = i;
+        }
+    }
+
+    printf("Max index was %d\n", max_index);
+    free(vote_tally);
+    return max_index;
+}
+
+
+void handle_voting(List clientIDs, List voted, Message movie_list, fd_set *master_set,
+                   int video_string_length, char *data, int* vote_tally, 
+                   int curr_port){
+    printf("In handle voting\n");
+    struct Message read_message; 
+    memcpy(&read_message, data, MAX_MESSAGE_LENGTH );
+    if (read_message.type == HELLO){
+        fprintf(stderr, "In hello\n");
+        char *new_client = malloc(20);
+        strcpy(new_client, read_message.data);
+        List_add(clientIDs, new_client, curr_port);
+        int n = write(curr_port, (char *) &movie_list, 801);
+    } else if (read_message.type == VOTE && !List_contains_fd(voted, curr_port)){
+        int video_index = (int)  read_message.data[0];
+        fprintf(stderr, "Got vote for index %d\n", video_index);
+        vote_tally[video_index]++;
+        List_add(voted, NULL, curr_port);
+    } else if (read_message.type == GOODBYE){
+        List_remove(clientIDs, List_getClientID(clientIDs, curr_port));
+        close(curr_port);
+        FD_CLR(curr_port, master_set);
+    }
+}
+
+void handle_download(List clientIDs, fd_set *master_set,  char *data, int curr_port, int *downloaded_count, 
+                     Message movie_content_message, 
+                     char *video_contents, int video_size){
+    struct Message read_message; 
+    memcpy(&read_message, data, MAX_MESSAGE_LENGTH);
+    if (read_message.type == DOWNLOADED){
+        fprintf(stderr, "Got download\n");
+        (*downloaded_count)++;
+    } else if (read_message.type == HELLO){
+        char *new_client = malloc(20);
+        strcpy(new_client, read_message.data);
+        List_add(clientIDs, new_client, curr_port);
+        
+        int n = write(curr_port, (char *) &movie_content_message, 1 + sizeof(long));
+        n = write(curr_port, video_contents, video_size);
+    } else if (read_message.type == GOODBYE){
+        List_remove(clientIDs, List_getClientID(clientIDs, curr_port));
+        close(curr_port);
+        FD_CLR(curr_port, master_set);
+    }
+}
+
+void handle_playing(List clientIDs, fd_set *master_set, char *data, int curr_port, int *end_count, 
+                     Message movie_content_message, char *video_contents, 
+                     int video_size, struct timespec video_start_time)
+{
+    struct Message read_message; 
+    memcpy(&read_message, data, MAX_MESSAGE_LENGTH);
+
+     if (read_message.type == END_MOVIE){
+        (*end_count)++;
+    } else if (read_message.type == HELLO){
+        char *new_client = malloc(20);
+        strcpy(new_client, read_message.data);
+        List_add(clientIDs, new_client, curr_port);
+        
+        int n = write(curr_port, (char *) &movie_content_message, 1 + sizeof(long));
+        n = write(curr_port, video_contents, video_size);
+
+        Message start_message; 
+        start_message.type = START;
+        struct timespec curr_time;
+        timespec_get(&curr_time, TIME_UTC);
+
+        long time_since_video_start =  curr_time.tv_sec - video_start_time.tv_sec;
+        time_since_video_start = htonll(video_start_time.tv_sec);
+        memcpy(start_message.data, &time_since_video_start, sizeof(long));
+        n = write(curr_port, (char *) &start_message, 1 + sizeof(long));
+    } else if (read_message.type == GOODBYE){
+        List_remove(clientIDs, List_getClientID(clientIDs, curr_port));
+        close(curr_port);
+        FD_CLR(curr_port, master_set);
+    }
+}
+
 int make_socket(int port) {
     struct sockaddr_in saddr;
     int master_socket = 0;
@@ -53,128 +368,50 @@ int make_socket(int port) {
     return master_socket;
 }
 
-//Starts the server
-void start_server(int port) {
-    struct sockaddr_in caddr;
-    int clen, isock = 0;
-    int master_socket = make_socket(port);
+/* 
+ * Populates a video_list struct with the names of all the videos in the 
+ * server's directory
+ */
+video_list get_videos(){
+    /* TODO: Error if over 255 movies */
+    fprintf(stderr, "In get videos\n");
+    DIR *d;
+    int list_capacity = 1;
+    char **videos = malloc(list_capacity * sizeof(char *));
+    int video_count = 0;
 
-    //Initialize the set of active fds
-    char buffer[MAX_MESSAGE_SIZE];
-    fd_set master_set;
-    fd_set temp_set;
-    FD_ZERO(&master_set);
-    FD_ZERO(&temp_set);
+    struct dirent *dir;
+    d = opendir(".");
 
-    FD_SET(master_socket, &master_set); 
-    int fdmax = master_socket;
+    if (!d){
+        printf("Error opening current directory\n");
+        exit(EXIT_FAILURE);
+    }
 
-    signal(SIGPIPE, SIG_IGN);
-
-    printf("Started server\n");
-    
-    while(1) {
-        
-        //Copy master to temp 
-        temp_set = master_set;
-
-        /* Block until input arrives on an active socket */
-        select(fdmax + 1, &temp_set, NULL, NULL, NULL);
-
-        /* Service all sockets with input pending */
-        if(FD_ISSET(master_socket, &temp_set)) {
-            isock = accept(master_socket, (struct sockaddr *) &caddr, &clen);
-            if(isock < 0) {
-                printf("Error accepting client request\n");
-                printf("%s\n", strerror(errno));
-                exit(1);
-            }
-
-            printf("Accepted client of fd %d\n", isock);
+    while ((dir = readdir(d)) != NULL) {
+        if (dir->d_type == DT_REG &&
+            strlen(dir->d_name) >= 4 && 
+            strcmp(dir->d_name + (strlen(dir->d_name) - 4), 
+                    ACCEPTED_VIDEO_FORMAT) == 0){
             
-            //Add the socket to the master set
-            FD_SET(isock, &master_set);
-            fdmax = max(isock, fdmax);
-        } else {
-            for(int i = 0; i <= fdmax; i++) {
-                if(FD_ISSET(i, &temp_set)) {
-                    bzero(buffer, MAX_MESSAGE_SIZE);
-                    int n = read(i, buffer, MAX_MESSAGE_SIZE);
-                    if (n > 0)  {
-                        printf("Server received %d bytes\n", n);
-                        process(buffer, i);
-                    }
+            if (video_count == (list_capacity - 1)){
+                list_capacity *= 2;
+                videos = realloc(videos, list_capacity * sizeof(char *));
             }
+            char *file_name = malloc(strlen(dir->d_name) + 1);
+            strcpy(file_name, dir->d_name);
+            videos[video_count] = file_name;
+            video_count++;
         }
-
-      }
     }
-
-    close(master_socket); 
-
+    closedir(d);
+    videos = realloc(videos, video_count * sizeof(char *));
+    video_list vds = {.videos = videos, .video_count = video_count};
+    fprintf(stderr, "Video count is %d\n", video_count);
+    return vds;
 }
 
-void process(char *data, int fd) {
-
-    int type = data[0];
-
-    if(type == 1) {
-
-        printf("Got HELLO from %s\n", data);
-
-        //send movie list 
-        char list[801];
-        bzero(list, 801);
-        list[0] = 2;
-
-        char *m = "MovieA\0MovieB\0MovieC\0MovieD\0";
-        for(int i = 0; i < 28; i++)
-            list[i + 1] = m[i];
-
-        write(fd, list, 801);
-        printf("Sent movie list to %s\n", data);
-
-    } else if (type == 3) { //movie vote
-
-        printf("Got vote for movie index %d\n", data[1]);
-        printf("Tallying up votes\n");
-
-        //Send the winning movie
-        char s[2];
-        s[0] = 4;
-        s[1] = 2; //movie of index 2 selected
-        write(fd, s, 2);
-        printf("Sent movie voted for\n");
-
-        //Send the actual video 
-        char z[1];
-        z[0] = 5;
-        write(fd, z, 1); //Movie content type
-
-        long size;
-        char* contents = get_video("movieA.mp4", &size);
-        size = htonll(size);
-        printf("Movie size was %ld\n", htonll(size));
-        write(fd, &size, sizeof(long));
-        write(fd, contents, htonll(size));
-        printf("sent movie to client\n");
-
-    } else if (type == 6)  {//downloaded signal
-        //Send start signal
-        char c[1];
-        c[0] = 7;
-        write(fd, c, 1);
-
-        long start = 0;
-        start = htonll(start);
-        write(fd, &start, sizeof(long));
-        
-    } else {
-        printf("Server received unsupported message type\n");
-    }
-}
-
-char* get_video(char *video_name, long *video_size) {
+char *load_video (char *video_name, long *video_size){
     const char READ_ONLY_MODE [] = "r";
     FILE *f = fopen(video_name, READ_ONLY_MODE);
 

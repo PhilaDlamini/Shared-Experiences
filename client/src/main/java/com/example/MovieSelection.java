@@ -44,9 +44,8 @@ public class MovieSelection {
 
             //Get selected item
             char index = (char) listView.getSelectionModel().getSelectedIndex();
-            selectedMovieName = listView.getSelectionModel().getSelectedItem();
 
-            System.out.println("Selected item " + selectedMovieName + " is of index " + index);
+            System.out.println("Selected item " + selectedMovieName + " is of index " + (char) (index + 48));
 
             //Send movie selection to server
             App.out.write(new char[]{App.VOTE, index});
@@ -65,6 +64,7 @@ public class MovieSelection {
                        
                     //Move on the the movie player
                     System.out.println("Selected movie: " + buffer[1]);
+                    selectedMovieName = movies[buffer[1]]; 
 
                     System.out.println("MovieSelection: userName " + userName + " , movieName: " + selectedMovieName);
                     primaryStage.setScene(Home.getScreen(primaryStage, userName, selectedMovieName));
