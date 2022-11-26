@@ -1,6 +1,7 @@
 package com.example;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.layout.StackPane;
@@ -14,45 +15,31 @@ import java.nio.ByteBuffer;
  */
 public class App extends Application {
     private static Socket socket;
-    public static PrintWriter out;
-    public static InputStream in;
-    public static final int SCREEN_W = 800;
-    public static final int SCREEN_H = 600;
-    public static final int VIDEO_WIDTH = 500;
-    public static final int VIDEO_HEIGHT = 300;
-
+    private static PrintWriter out;
+    private static InputStream in;
+    private static Stage stage;
+    public static final int SCREEN_W = 800, SCREEN_H = 600, VIDEO_WIDTH = 500,
+    VIDEO_HEIGHT = 300;
+    public static int PORT;
+ 
     //The message types 
-    public static final int HELLO = 1;
-    public static final int MOVIES = 2;
-    public static final int VOTE = 3;
-    public static final int MOVIE_SELECTED  = 4;
-    public static final int MOVIE_CONTENT = 5;
-    public static final int DOWNLOADED = 6;
-    public static final int START = 7;
-    public static final int END_MOVIE = 8;
-    public static final int GOODBYE = 9;
-    public static final int ERROR = 10;
+    public static final int HELLO = 1, MOVIES = 2, VOTE = 3, MOVIE_SELECTED  = 4,
+    MOVIE_CONTENT = 5, DOWNLOADED = 6, START = 7, END_MOVIE = 8, GOODBYE = 9, 
+    TOGGLE = 10, TOGGLE_MOVIE = 11, SEEK = 12, SEEK_MOVIE = 13;
+
+    //The user information 
+    public static String userName;
+    public static String movieName = "unknown.mp4";
+    public static String[] movies;
+    public static long startDuration;
+
+    //The known screens
+    public static final char LOGIN = 'L';
+    public static final char SELECTION = 'S';
+    public static final char MOVIE_PLAYER = 'M';
+
     
-    @Override
-    public void start(final Stage primaryStage) {
-		primaryStage.setTitle("NextChat");
-		primaryStage.setScene(Login.getScreen(primaryStage));
-		primaryStage.show();
-    }
-
-    public static void main(String[] args) {
-        try {
-            socket = new Socket(InetAddress.getByName("localhost").getHostAddress(), Integer.parseInt(args[0]));
-            out = new PrintWriter(socket.getOutputStream(), true);
-            in = socket.getInputStream();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        Application.launch(args);
-    }
-
-    //Writes to the socket
+    //Reads the given number of bytes from the socket
     public static byte[] read(int n) {
         byte[] buffer = new byte[n];
         int read = 0;
@@ -64,9 +51,13 @@ public class App extends Application {
                 e.printStackTrace();
             }
         }
-
-        System.out.println("Read " + read + " bytes from server");
         return buffer;
+    }
+
+    //Writes a long
+    public static void writeLong(long l) {
+        out.println(l);
+        out.flush();
     }
 
     //Reads in a long 
@@ -75,6 +66,63 @@ public class App extends Application {
         buffer.put(read(8));
         buffer.flip();
         return buffer.getLong();
+    }
+
+    //Writes the specified number of bytes
+    public static void write(char[] data, int n) {
+        out.write(data, 0, n);
+        out.flush();
+    }
+
+    //Switches to the specified screen
+    public static void switchToScreen(char screen) {
+        Platform.runLater(() -> {
+            switch(screen) {
+                case LOGIN:
+                    stage.setScene(Login.getScreen());
+                    break;
+                
+                case SELECTION:
+                    stage.setScene(Selection.getScreen());
+                    break;
+                
+                case MOVIE_PLAYER:
+                    stage.setScene(MoviePlayer.getScreen());
+                    break;
+    
+                default:
+                    System.out.println("Unknown screen");
+                    break;
+            }    
+        });
+    }
+
+    @Override
+    public void start(Stage stage) {
+        App.stage = stage;
+		stage.setTitle("NextChat");
+        stage.setScene(Login.getScreen());
+		stage.show();
+    }
+
+    public static void main(String[] args) {
+        //Connect with server
+        PORT = Integer.parseInt(args[0]);
+        try {
+            socket = new Socket(InetAddress.getByName("localhost").getHostAddress(), PORT);
+            out = new PrintWriter(socket.getOutputStream(), true);
+            in = socket.getInputStream();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        //Continously reads input and processes it
+        Thread t = new Thread(new Control());
+        t.start();
+
+        //Launch the application
+        Application.launch(args);
+
     }
 
 }

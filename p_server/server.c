@@ -102,7 +102,7 @@ void start_server(int port) {
                     int n = read(i, buffer, MAX_MESSAGE_SIZE);
                     if (n > 0)  {
                         printf("Server received %d bytes: %s\n", n, buffer);
-                        send_video(i);
+                        process(buffer, i);
                     }
             }
         }
@@ -112,6 +112,118 @@ void start_server(int port) {
 
     close(master_socket); 
 
+}
+
+void process(char *data, int fd) {
+
+    int type = data[0];
+
+    if(type == 1) {
+
+        printf("Got HELLO from %s\n", data);
+
+        // //send movie content
+        // char z[1];
+        // z[0] = 5;
+        // write(fd, z, 1); //Movie content type
+
+        //send movie list 
+        char list[801];
+        bzero(list, 801);
+        list[0] = 2;
+
+        char *m = "minecraft.mp4\0";
+        for(int i = 0; i < 14; i++)
+            list[i + 1] = m[i];
+
+        write(fd, list, 801);
+        printf("Sent movie list to %s\n", data);
+
+    } else if (type == 3) { //movie vote
+
+        printf("Got vote for movie index %d\n", data[1]);
+        printf("Tallying up votes\n");
+
+        //Send the winning movie
+        char s[2];
+        s[0] = 4;
+        s[1] = 0; //movie of index 0 selected
+        write(fd, s, 2);
+        printf("Sent movie voted for\n");
+
+        //Send the actual video 
+        char z[1];
+        z[0] = 5;
+        write(fd, z, 1); //Movie content type
+
+        // long size;
+        // char* contents = get_video("5sec.mp4", &size);
+        // size = htonll(size);
+        // printf("Movie size was %ld\n", htonll(size));
+        // write(fd, &size, sizeof(long));
+        // write(fd, contents, htonll(size));
+        // printf("sent movie to client\n");
+
+    } else if (type == 6)  {//downloaded signal
+
+        printf("Got download signal from client\n");
+        //Send start signal
+        char c[1];
+        c[0] = 7;
+        write(fd, c, 1);
+
+        long start = 60; //Start at 60 seconds
+        start = htonll(start);
+        write(fd, &start, sizeof(long));
+        
+    } else if (type == 8) {
+
+        printf("Got END movie from %d\n", fd);
+
+        //send movie list 
+        char list[801];
+        bzero(list, 801);
+        list[0] = 2;
+
+        char *m = "minecraft.mp4\0";
+        for(int i = 0; i < 14; i++)
+            list[i + 1] = m[i];
+
+        write(fd, list, 801);
+        printf("Sent movie list to %d\n", fd);
+
+    } else if(type == 9) {
+
+        printf("Got goodbye from %s\n", data);
+
+    } else if(type == 10) { //toggle received. send to toggle to all clients
+
+        printf("Got toggle from %s\n", data);
+        char a[1];
+        a[0] = 11;
+        write(fd, a, 1);
+    } else if(type == 12) {
+        printf("Got seek from %s\n", data + 2);
+
+        //Get long duration
+        long duration = data[1];
+
+        printf("Duration was %ld\n", duration);
+        
+        //send seek to all clients
+        char b[1];
+        b[0] = 13;
+        write(fd, b, 1);
+        duration = htonll(duration);
+        write(fd, &duration, sizeof(long));
+    }
+    
+    else if (type == 'G' || type == 'H') {
+        printf("Got movie request\n");
+        send_video(fd);
+    } else {
+        printf("Server received unsupported message type\n");
+    }
 }
 
 void send_video(int fd) {

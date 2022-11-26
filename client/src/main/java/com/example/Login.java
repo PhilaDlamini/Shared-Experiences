@@ -1,7 +1,5 @@
 package com.example;
 
-import javafx.geometry.HPos;
-import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.*;
 import javafx.scene.control.Button;
@@ -9,13 +7,10 @@ import javafx.scene.control.TextField;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
-import javafx.stage.Stage;
 
 public class Login {
 
-    private static String userName;
-
-    public static Scene getScreen(Stage stage) {
+    public static Scene getScreen() {
 
         Text text = new Text("NextChat");
         text.setStyle("    -fx-font: 70px Tahoma;    ");
@@ -29,14 +24,14 @@ public class Login {
         Button button = new Button("Join");
         button.setFocusTraversable(false);
         button.setOnAction(e -> {
-            userName = tf.getText();
+            App.userName = tf.getText();
 
-            //Ensure name is less than 20 chars
-            System.out.println("User is " + userName);
-
-            //Send username
-            sendHello(userName);
-            processHello(stage);
+            if(App.userName.length() < 20) {
+                //Ensure name is less than 20 chars
+                System.out.println("Username is " + App.userName);
+                sendHello(App.userName);
+            } else 
+                System.out.println("ERROR logging in: username should be less than 20 characters");
         });
 
         //Constructs them 
@@ -59,32 +54,6 @@ public class Login {
         }
 
         hello[userName.length() + 1] = '\0';
-        App.out.write(hello, 0, 21);
-        App.out.flush();
-    }
-
-    //Process response
-    private static void processHello(Stage stage) {
-        
-        //Read in response 
-        int response = App.read(1)[0];
-
-        if(response == App.MOVIES) {
-
-            //Get the movie list 
-            String[] movies = new String(App.read(800)).split("\0");
-
-            //Print out for good measure
-            for(String movie: movies)
-                System.out.println(movie);
-
-            stage.setScene(MovieSelection.getScreen(stage, movies, userName));
-
-        } else if (response == App.MOVIE_CONTENT) {
-
-            //Go to the movie screen 
-        } else if (response == App.ERROR) {
-
-        }
+        App.write(hello, 21);
     }
 }
