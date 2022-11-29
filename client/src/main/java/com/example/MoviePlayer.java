@@ -1,14 +1,20 @@
 package com.example;
 
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import javafx.application.Platform;
+import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ScrollPane.ScrollBarPolicy;
@@ -28,32 +34,39 @@ import javafx.scene.media.MediaView;
 import javafx.scene.media.MediaPlayer.Status;
 
 public class MoviePlayer {
+    private static VBox scroll;
     private static MediaView mediaView = new MediaView();
     private static MediaPlayer mediaPlayer;
 
+    //The progress task 
+    private static Task<Void> progressTask;
+    
     public static Scene getScreen() {
-        return new Scene(screen(), App.SCREEN_W, App.SCREEN_H);
+        Scene scene = new Scene(screen(), App.SCREEN_W, App.SCREEN_H);
+        scene.setFill(Color.WHITE);
+        return scene;
     }
 
    //Builds the video player 
     private static VBox player() {
-    
         System.out.println("movie name is " + App.movieName);
+        
         //Instantiating the Media player class 
-        String url = "http://localhost:"  + App.PORT + "/" + App.movieName;
-        Media media = new Media(url);
+        final Media media = new Media(App.movieFile.toURI().toString());
         mediaPlayer = new MediaPlayer(media); 
         mediaPlayer.setOnError(() -> {
             System.out.println("media error "+ mediaPlayer.getError().toString());
 
-            //what do do here? Perhaps have the client rejoin??
+            //could do this but complicates things a little
+            // mediaPlayer.dispose();
+            // App.switchToScreen(App.MOVIE_PLAYER);
+
         });
         
         mediaPlayer.setOnReady(() -> {
             //Send Downloaded message
             App.write(new char[]{App.DOWNLOADED}, 1);
             mediaView.setMediaPlayer(mediaPlayer);
-            
         }); 
 
         mediaPlayer.setOnEndOfMedia(() -> {
@@ -61,6 +74,7 @@ public class MoviePlayer {
 
             //Send END_MOVIE message
             App.write(new char[]{App.END_MOVIE}, 1);
+            mediaPlayer.dispose();
         });
 
         mediaView.setFitHeight(App.VIDEO_HEIGHT);
@@ -69,41 +83,66 @@ public class MoviePlayer {
         Rectangle clip = new Rectangle(
             mediaView.getFitWidth(), mediaView.getFitHeight()
         );
-        clip.setArcWidth(50);
-        clip.setArcHeight(50);
+        clip.setArcWidth(30);
+        clip.setArcHeight(30);
         mediaView.setClip(clip);
+        //TODO: figure out why this clip does not work for bottom
 
         //The controls 
         Button seekBack = new Button("<");
         seekBack.setOnAction(e -> {
-            long seconds = (long) mediaPlayer.getCurrentTime().toSeconds() + 10;
-            sendSeek(App.userName, seconds);
+            long seconds = (long) mediaPlayer.getCurrentTime().toSeconds() - 10;
+            sendSeek(App.userName, Math.max(0, seconds));
         });
 
         Button seekForward = new Button(">");
         seekForward.setOnAction(e -> {
-            long seconds = (long) mediaPlayer.getCurrentTime().toSeconds() - 10;
+            long seconds = (long) mediaPlayer.getCurrentTime().toSeconds() + 10;
+            System.out.println("sent seek for: " + seconds);
             sendSeek(App.userName, seconds);
+            
         });
 
         Button playPause = new Button("||");
         playPause.setOnAction(e -> {
-
-            //Send toggle to server
             sendToggle(App.userName);
         });
 
+        //moviename and controls
         Text movieName = new Text(App.movieName);
         HBox controls = new HBox(seekBack, playPause, seekForward);
         controls.setSpacing(20);
         controls.setAlignment(Pos.CENTER);
-        HBox all = new HBox(movieName, controls);
-        all.setAlignment(Pos.CENTER_LEFT);
-        all.setSpacing(120);
+        HBox nameAndControls = new HBox(movieName, controls);
+        nameAndControls.setAlignment(Pos.CENTER_LEFT);
+        nameAndControls.setSpacing(120);
+
+        //mediaview and progress
+        //The media progress
+        final ProgressBar mediaProgress = new ProgressBar(0.0);
+        mediaProgress.setPrefWidth(App.VIDEO_WIDTH);
+        mediaProgress.setPrefHeight(10);
+
+        progressTask = new Task<Void>() {
+
+            @Override
+            protected Void call() throws Exception {
+                while (mediaPlayer.getStatus() != Status.DISPOSED) {
+                    double curr = mediaPlayer.getCurrentTime().toSeconds();
+                    double end = media.getDuration().toSeconds();
+                    updateProgress(curr, end);
+                }
+
+                return null;
+            }
+        };
+        mediaProgress.progressProperty().bind(progressTask.progressProperty());
+        VBox mediaAndProgress = new VBox(mediaView, mediaProgress);
+        mediaAndProgress.setAlignment(Pos.CENTER_LEFT);
 
         //The vertical component'
-        VBox box = new VBox(mediaView, all);
-        box.setSpacing(20);
+        VBox box = new VBox(mediaAndProgress, nameAndControls);
+        box.setSpacing(10);
         return box;
     }
 
@@ -112,10 +151,16 @@ public class MoviePlayer {
         System.out.println("Movie will start playing at " + App.startDuration + " seconds");
         mediaPlayer.seek(Duration.seconds(App.startDuration));
         mediaPlayer.play();
+
+        //Start the progress thread
+        final Thread thread = new Thread(progressTask);
+        thread.setDaemon(true);
+        thread.start();
     }
 
     //Seeks the mediaPlayer
     public static void seekMovie(long duration) {
+        System.out.println("Movie will seek to " + duration);
         mediaPlayer.seek(Duration.seconds(duration));
     }
 
@@ -134,6 +179,7 @@ public class MoviePlayer {
         text.setFont(Font.font("Raleway", 14));
         Button button = new Button("Logout");
         button.setOnAction(e -> {
+            App.chats = new ArrayList<>();
             sendGoodbye(App.userName);
             System.out.println("Logout pressed");
             mediaPlayer.dispose();
@@ -149,25 +195,8 @@ public class MoviePlayer {
         hbox.setSpacing(20); //TODO: this is not the right way to do it
 
         //The messages
-        List<String> messages = new LinkedList<>(
-            Arrays.asList(
-            "Hey", "OMG I agree!", "So sad to see thing happening tho",
-            "One thing I've always said this movie is great. Imagine!", 
-            "Hey", "OMG I love this movie!", "So scary", "I love it!",
-            "Hey", "OMG I love this movie!", "So scary", "I love it!", 
-            "One thing I've always said this movie is great. Imagine!", 
-            "Hey", "OMG I love this movie!", "So scary", "I love it!",
-            "Hey", "OMG I love this movie!", "So scary", "I love it!", 
-            "One thing I've always said this movie is great. Imagine!", 
-            "Hey", "OMG I love this movie!", "So scary", "I love it!",
-            "Hey", "OMG I love this movie!", "So scary", "I love it!", 
-            "One thing I've always said this movie is great. Imagine!", 
-            "Hey", "OMG I love this movie!", "So scary", "I love it!",
-            "Hey", "OMG I love this movie!", "So scary", "I love it!",  
-            "Hey", "Lmao totally agree! This can definetely go better. There's so much to figure out", "So scary", "I love it!")
-        );
-
-        HBox vid_mes_area = new HBox(30, player(), messages(messages));
+        HBox vid_mes_area = new HBox(30, player(), messages());
+        vid_mes_area.setBackground(new Background(new BackgroundFill(Color.WHITE, null, null)));
 
         //The send message area
         TextField tf = new TextField();
@@ -180,7 +209,19 @@ public class MoviePlayer {
         Button sendMesage = new Button("Send");
         sendMesage.setOnAction(e -> {
             System.out.println("Sending message: " + tf.getText());
+
+            //Ensure message is less than 400 char
+            String message = tf.getText();
+
+            int n = message.length();
+            if(n > 0 && n < 400) {
+                sendChat(App.userName, message);
+            } else System.out.println("ERROR: message size == 0 or >= 400 chars");
+
+            //Reset the field
+            tf.setText("");
         });
+
         HBox send = new HBox(30, tf, sendMesage);
         send.setAlignment(Pos.CENTER_LEFT);
 
@@ -197,28 +238,18 @@ public class MoviePlayer {
     }
 
     //Returns all the messages 
-    private static ScrollPane messages(List<String> messages) {
-        VBox scroll = new VBox();
+    private static ScrollPane messages() {
+        scroll = new VBox();
         scroll.setBackground(new Background(new BackgroundFill(Color.WHITE, null, null))); 
-        scroll.getChildren().addAll(
-            messages
-            .stream()
-            .map(m -> {
-
-                //The profile pic and text message 
-                Text text = new Text(m);
-                text.setWrappingWidth(200);
-                return text; 
-            })
-            .collect(Collectors.toList()));
+        updateChats();
 
         ScrollPane pane = new ScrollPane();
-        pane.setBackground(new Background(new BackgroundFill(Color.WHITE, null, null))); 
         pane.setStyle("-fx-background-color:transparent;");
         pane.setVbarPolicy(ScrollBarPolicy.NEVER);
         pane.setPrefHeight(App.VIDEO_HEIGHT);
         pane.setFocusTraversable(false);
         pane.setContent(scroll);
+        pane.setVvalue(pane.getVmax());
         return pane;
     }
 
@@ -248,22 +279,81 @@ public class MoviePlayer {
     App.write(toggle, 21);
 }
 
+    //Sends the chat message 
+    private static void sendChat(String sender, String message) {
+        char[] data = new char[421];
+        data[0] = App.CHAT;
+
+        //Copy over the name
+        for(int i = 0; i < sender.length(); i++)
+            data[i + 1] = sender.charAt(i);  
+        data[sender.length() + 1] = '\0';
+
+        //copy over the message
+        for(int i = 0; i < message.length(); i++) 
+            data[i + 21] = message.charAt(i);
+        data[message.length() + 21] = '\0';
+        
+        App.write(data, 421);
+
+    }
+
     //Sends the toggle message to server 
     private static void sendSeek(String userName, long s) {
 
-        System.out.println("Sent seek for " + s);
+        //The data to write
+        char[] data = new char[29];
+        data[0] = App.SEEK;
 
-        //Write the type and seconds
-        App.write(new char[]{App.SEEK}, 1);
-        App.writeLong(s);
+        //Put the long
+        s = Long.reverseBytes(s);
+        ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+        buffer.putLong(0, s);
+        String arr = new String(buffer.array());
 
-        //Write the name
-        char[] seek = new char[20];
+        for(int i = 0; i < 8; i++)
+            data[i + 1] = arr.charAt(i);
+        
+        //Put the name in as well
         for(int i = 0; i < userName.length(); i++) {
-            seek[i] = userName.charAt(i);
+            data[i + 9] = userName.charAt(i);
         }
 
-        seek[userName.length()] = '\0';
-        App.write(seek, 20);
+        data[userName.length() + 9] = '\0';
+        App.write(data, 29);
+    }
+
+    public static void updateChats() {
+        if(scroll == null) 
+            return;
+
+        Platform.runLater(() -> {
+        scroll.getChildren().removeAll(scroll.getChildren());
+        scroll.getChildren().addAll(
+            App.chats
+            .stream()
+            .map(m -> {
+
+                String[] message = m.split(":");
+                Text name = new Text(message[0] + ":");
+                name.setFont(Font.font("Verdana", 12));
+                Text chat = new Text(message[1]);
+                chat.setWrappingWidth(150);
+                HBox box = new HBox(name, chat);
+                box.setSpacing(5);
+                return box; 
+            })
+            .collect(Collectors.toList()));
+        });
+
+        System.out.println("Updated chats!");
+    }
+
+    //When the stage is being closed
+    public static void disposeMedia() {
+        if(mediaPlayer != null) {
+            mediaPlayer.stop();
+            mediaPlayer.dispose();
+        }
     }
 }

@@ -2,13 +2,11 @@ package com.example;
 
 import javafx.application.Application;
 import javafx.application.Platform;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
-import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 
 /**
  * JavaFX App
@@ -19,19 +17,22 @@ public class App extends Application {
     private static InputStream in;
     private static Stage stage;
     public static final int SCREEN_W = 800, SCREEN_H = 600, VIDEO_WIDTH = 500,
-    VIDEO_HEIGHT = 300;
+    VIDEO_HEIGHT = 350;
     public static int PORT;
  
     //The message types 
     public static final int HELLO = 1, MOVIES = 2, VOTE = 3, MOVIE_SELECTED  = 4,
     MOVIE_CONTENT = 5, DOWNLOADED = 6, START = 7, END_MOVIE = 8, GOODBYE = 9, 
-    TOGGLE = 10, TOGGLE_MOVIE = 11, SEEK = 12, SEEK_MOVIE = 13;
+    TOGGLE = 10, TOGGLE_MOVIE = 11, SEEK = 12, SEEK_MOVIE = 13, CHAT = 14,
+    CHATS = 15;
 
     //The user information 
     public static String userName;
     public static String movieName = "unknown.mp4";
     public static String[] movies;
+    public static ArrayList<String> chats = new ArrayList<>();
     public static long startDuration;
+    public static File movieFile;
 
     //The known screens
     public static final char LOGIN = 'L';
@@ -100,6 +101,8 @@ public class App extends Application {
     @Override
     public void start(Stage stage) {
         App.stage = stage;
+        stage.setOnCloseRequest(e -> MoviePlayer.disposeMedia());
+        stage.setOnHidden(e -> MoviePlayer.disposeMedia());
 		stage.setTitle("NextChat");
         stage.setScene(Login.getScreen());
 		stage.show();
@@ -113,8 +116,9 @@ public class App extends Application {
             out = new PrintWriter(socket.getOutputStream(), true);
             in = socket.getInputStream();
         } catch (Exception e) {
-            e.printStackTrace();
-        }
+            System.out.println("Client encountered error: " + e.getMessage());
+            System.exit(-1);
+        } 
 
         //Continously reads input and processes it
         Thread t = new Thread(new Control());
@@ -123,6 +127,24 @@ public class App extends Application {
         //Launch the application
         Application.launch(args);
 
+    }
+
+    //Updates the movie file 
+    public static void updateMovie(byte[] movie) {
+        try {
+            if(movieFile != null) {
+                movieFile.delete();
+            }
+
+            movieFile = File.createTempFile("VACA", ".mp4");
+            movieFile.deleteOnExit();
+            OutputStream o = new FileOutputStream(movieFile);
+            o.write(movie);
+            o.close();
+            
+        } catch (IOException e) {
+            System.out.println("ERR updating movie file " + e.getMessage());
+        }
     }
 
 }

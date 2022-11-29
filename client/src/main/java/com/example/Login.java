@@ -10,6 +10,11 @@ import javafx.scene.text.Text;
 
 public class Login {
 
+    private static VBox info;
+
+    //The error message to show to users 
+    private static Text errMsg = new Text("Username ≥ 20 characters and/or contains ':' ");
+    
     public static Scene getScreen() {
 
         Text text = new Text("NextChat");
@@ -20,22 +25,33 @@ public class Login {
         tf.setPromptText("Username");
         tf.setFocusTraversable(false);
         tf.setMaxWidth(250);
+        info = new VBox(tf);
+        info.setAlignment(Pos.TOP_LEFT);
+        info.setSpacing(5);
+        VBox wrapper = new VBox(info);
+        wrapper.setAlignment(Pos.CENTER);
+        wrapper.setMaxWidth(250);
 
         Button button = new Button("Join");
         button.setFocusTraversable(false);
         button.setOnAction(e -> {
             App.userName = tf.getText();
 
-            if(App.userName.length() < 20) {
+            if(App.userName.length() < 20 && !App.userName.contains(":")) {
                 //Ensure name is less than 20 chars
                 System.out.println("Username is " + App.userName);
                 sendHello(App.userName);
-            } else 
-                System.out.println("ERROR logging in: username should be less than 20 characters");
+            } else {
+                System.out.println("ERROR logging in: username should be less than 20 characters and not contain :");
+                
+                //Show error message
+                errMsg.setFill(Color.RED);
+                info.getChildren().addAll(errMsg);
+            } //TODO: show this on the screen
         });
 
         //Constructs them 
-        VBox box = new VBox(text, tf, button);
+        VBox box = new VBox(text, wrapper, button);
         box.setSpacing(80);
         box.setAlignment(Pos.CENTER);
         box.setBackground(new Background(new BackgroundFill(Color.WHITE, null, null)));

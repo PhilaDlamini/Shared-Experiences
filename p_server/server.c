@@ -1,5 +1,6 @@
 #include "server.h"
 
+int init = 1;
 /*
  * A server that sends videos to clients over JavaFX's HTTP live streaming 
  */
@@ -139,6 +140,18 @@ void process(char *data, int fd) {
         write(fd, list, 801);
         printf("Sent movie list to %s\n", data);
 
+        //Send chats
+        char b[1];
+        b[0] = 15;
+        write(fd, b, 1);
+        long len = 67;
+        len = htonll(len);
+        write(fd, &len, sizeof(long));
+
+        char *data = "Phila:hi everyone\0Sean:hey, how a u\0Nick:good! I love this movie:)\0";
+        write(fd, data, htonll(len));
+        printf("Sent all chats to them as well\n");
+
     } else if (type == 3) { //movie vote
 
         printf("Got vote for movie index %d\n", data[1]);
@@ -155,14 +168,7 @@ void process(char *data, int fd) {
         char z[1];
         z[0] = 5;
         write(fd, z, 1); //Movie content type
-
-        // long size;
-        // char* contents = get_video("5sec.mp4", &size);
-        // size = htonll(size);
-        // printf("Movie size was %ld\n", htonll(size));
-        // write(fd, &size, sizeof(long));
-        // write(fd, contents, htonll(size));
-        // printf("sent movie to client\n");
+        send_video(fd);
 
     } else if (type == 6)  {//downloaded signal
 
@@ -172,7 +178,7 @@ void process(char *data, int fd) {
         c[0] = 7;
         write(fd, c, 1);
 
-        long start = 60; //Start at 60 seconds
+        long start = 0; //Start at 0 seconds
         start = htonll(start);
         write(fd, &start, sizeof(long));
         
@@ -203,12 +209,13 @@ void process(char *data, int fd) {
         a[0] = 11;
         write(fd, a, 1);
     } else if(type == 12) {
-        printf("Got seek from %s\n", data + 2);
 
+        //TODO: why do we not need to do htonll here? 
         //Get long duration
-        long duration = data[1];
+        long duration; 
+        memcpy(&duration, data + 1, sizeof (long)); 
 
-        printf("Duration was %ld\n", duration);
+        printf("Got seek to %ld from %s\n", duration, data + 9);
         
         //send seek to all clients
         char b[1];
@@ -216,12 +223,22 @@ void process(char *data, int fd) {
         write(fd, b, 1);
         duration = htonll(duration);
         write(fd, &duration, sizeof(long));
+    } else if(type == 14) {
+        printf("Got chat from %s\n", data + 1);
+        printf("Message was: %s\n", data + 21);
+        
+        //Send the chat to *all* clients
+        char b[1];
+        b[0] = 15;
+        write(fd, b, 1);
+
+        char *message = "Sean: Hi all! Loving this movie? This is my fav so far\0";
+        long len = strlen(message) + 1;
+        len = htonll(len);
+        write(fd, &len, sizeof(long));
+        write(fd, message, htonll(len));
     }
-    
-    else if (type == 'G' || type == 'H') {
-        printf("Got movie request\n");
-        send_video(fd);
-    } else {
+    else {
         printf("Server received unsupported message type\n");
     }
 }
@@ -241,8 +258,8 @@ void send_video(int fd) {
 
     printf("video size was %ld\n", file_size);
 
-    char *res = "HTTP/1.1 200 OK\r\nDate: Mon, 27 Jul 2009 12:28:53 GMT\r\nServer: Apache/2.2.14 (Win32)\r\nLast-Modified: Wed, 22 Jul 2009 19:15:56 GMT\r\nContent-Length: 26478358\r\nContent-Type: text/html\r\nConnection: Closed\r\n\r\n";
-    write(fd, res, strlen(res));
+    long rev = htonll(file_size);
+    write(fd, &rev, sizeof(long));
    
     //Write the whole movie
     write(fd, video_contents, file_size);

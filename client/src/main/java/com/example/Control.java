@@ -1,5 +1,5 @@
 package com.example;
-
+import java.util.*;
 import javafx.application.Platform;
 import javafx.scene.media.MediaPlayer;
 
@@ -34,7 +34,8 @@ public class Control implements Runnable {
                     break;
                 
                 case App.MOVIE_CONTENT:
-                    //Switch to movie screen
+                    byte[] movie = App.read((int) App.readLong()); //TODO: what if movie bytes are more than INT_MAX
+                    App.updateMovie(movie);
                     App.switchToScreen(App.MOVIE_PLAYER);
                     break;
 
@@ -53,8 +54,18 @@ public class Control implements Runnable {
 
                 case App.SEEK_MOVIE:
                     System.out.println("Got seek from server");
-                    long duration = App.readLong();
-                    MoviePlayer.seekMovie(duration);
+                    MoviePlayer.seekMovie(App.readLong());
+                    break;
+
+                case App.CHATS:
+
+                    //Read incoming chats
+                    long len = App.readLong();
+                    String[] incoming = new String(App.read((int)len )).split("\0");
+                    
+                    //Append these messages to the old ones
+                    Collections.addAll(App.chats, incoming);
+                    MoviePlayer.updateChats();
                     break;
 
                 default:
