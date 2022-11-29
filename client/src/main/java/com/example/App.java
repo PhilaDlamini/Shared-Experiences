@@ -7,6 +7,7 @@ import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.LinkedList;
 
 /**
  * JavaFX App
@@ -29,7 +30,7 @@ public class App extends Application {
     //The user information 
     public static String userName;
     public static String movieName = "unknown.mp4";
-    public static String[] movies;
+    public static LinkedList<String> movies = new LinkedList<>();
     public static ArrayList<String> chats = new ArrayList<>();
     public static long startDuration;
     public static File movieFile;
@@ -105,6 +106,7 @@ public class App extends Application {
         stage.setOnHidden(e -> MoviePlayer.disposeMedia());
 		stage.setTitle("NextChat");
         stage.setScene(Login.getScreen());
+        stage.setResizable(false);
 		stage.show();
     }
 

@@ -18,8 +18,17 @@ public class Control implements Runnable {
 
                     //Read the list and go to movie selection
                     System.out.println("Got movie list");
-                    App.movies = new String(App.read(800)).split("\0");
+                    String[] movies = new String(App.read(800)).split("\0");
                     
+                    //Removies the ".mp4" extension
+                    LinkedList<String> rem = new LinkedList<>();
+                    for(String name: movies) {
+                        String a = name.replaceAll(".mp4", "");
+                        rem.add(a);
+                    }   
+                    App.movies = rem;
+
+                    //Print them out
                     for(String movie: App.movies)
                         System.out.println(movie);
 
@@ -30,7 +39,7 @@ public class Control implements Runnable {
                 case App.MOVIE_SELECTED:
                     int selection = App.read(1)[0];
                     System.out.println("Winning movie: " + selection);
-                    App.movieName = App.movies[selection]; 
+                    App.movieName = App.movies.get(selection); 
                     break;
                 
                 case App.MOVIE_CONTENT:

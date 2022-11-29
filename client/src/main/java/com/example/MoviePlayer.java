@@ -20,12 +20,16 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.ScrollPane.ScrollBarPolicy;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
+import javafx.scene.layout.Border;
+import javafx.scene.layout.BorderStroke;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.util.Duration;
 import javafx.scene.media.Media;
@@ -36,6 +40,7 @@ import javafx.scene.media.MediaPlayer.Status;
 public class MoviePlayer {
     private static VBox scroll;
     private static MediaView mediaView = new MediaView();
+    private static ScrollPane pane;
     private static MediaPlayer mediaPlayer;
 
     //The progress task 
@@ -122,7 +127,7 @@ public class MoviePlayer {
         final ProgressBar mediaProgress = new ProgressBar(0.0);
         mediaProgress.setPrefWidth(App.VIDEO_WIDTH);
         mediaProgress.setPrefHeight(10);
-
+        
         progressTask = new Task<Void>() {
 
             @Override
@@ -174,7 +179,12 @@ public class MoviePlayer {
     //Displays the mediaplayer
     public static VBox screen() {
         //The user name 
-        Circle icon = new Circle(21, Color.GRAY);
+        Circle icon = new Circle(21, Color.DARKCYAN);
+        Text letter = new Text("" + (char) App.userName.charAt(0));
+        letter.setFont(Font.font("Verdana", FontWeight.BOLD,null, 16));
+        letter.setFill(Color.WHITE);
+        StackPane pane = new StackPane(icon, letter);
+        pane.setAlignment(Pos.CENTER);
         Text text = new Text(App.userName);
         text.setFont(Font.font("Raleway", 14));
         Button button = new Button("Logout");
@@ -187,15 +197,15 @@ public class MoviePlayer {
         });
 
         //Displays user name at top 
-        HBox profile = new HBox(icon, text);
+        HBox profile = new HBox(pane, text);
         profile.setAlignment(Pos.CENTER);
         profile.setSpacing(10);
         HBox hbox = new HBox(profile, button);
         hbox.setAlignment(Pos.CENTER_LEFT);
-        hbox.setSpacing(20); //TODO: this is not the right way to do it
+        hbox.setSpacing(50); //TODO: this is not the right way to do it
 
         //The messages
-        HBox vid_mes_area = new HBox(30, player(), messages());
+        HBox vid_mes_area = new HBox(15, player(), messages());
         vid_mes_area.setBackground(new Background(new BackgroundFill(Color.WHITE, null, null)));
 
         //The send message area
@@ -222,7 +232,7 @@ public class MoviePlayer {
             tf.setText("");
         });
 
-        HBox send = new HBox(30, tf, sendMesage);
+        HBox send = new HBox(15, tf, sendMesage);
         send.setAlignment(Pos.CENTER_LEFT);
 
         //The column of all elements
@@ -240,11 +250,12 @@ public class MoviePlayer {
     //Returns all the messages 
     private static ScrollPane messages() {
         scroll = new VBox();
+        scroll.setAlignment(Pos.CENTER);
         scroll.setBackground(new Background(new BackgroundFill(Color.WHITE, null, null))); 
         updateChats();
 
-        ScrollPane pane = new ScrollPane();
-        pane.setStyle("-fx-background-color:transparent;");
+        pane = new ScrollPane();
+        pane.setStyle("-fx-background: rgb(255,255,255);\n -fx-background-color: rgb(255,255,255)");
         pane.setVbarPolicy(ScrollBarPolicy.NEVER);
         pane.setPrefHeight(App.VIDEO_HEIGHT);
         pane.setFocusTraversable(false);
@@ -336,8 +347,10 @@ public class MoviePlayer {
 
                 String[] message = m.split(":");
                 Text name = new Text(message[0] + ":");
-                name.setFont(Font.font("Verdana", 12));
+                name.setFill(Color.web("#263238"));
+                name.setFont(Font.font("Verdana", FontWeight.BOLD,null, 13));
                 Text chat = new Text(message[1]);
+                chat.setFont(Font.font("Verdana", 12));
                 chat.setWrappingWidth(150);
                 HBox box = new HBox(name, chat);
                 box.setSpacing(5);
@@ -345,6 +358,10 @@ public class MoviePlayer {
             })
             .collect(Collectors.toList()));
         });
+
+        //Scroll all the way to the bottom
+        if(pane != null)
+            pane.setVvalue(pane.getVmax());
 
         System.out.println("Updated chats!");
     }

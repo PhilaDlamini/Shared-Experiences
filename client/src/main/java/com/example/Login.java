@@ -11,9 +11,6 @@ import javafx.scene.text.Text;
 public class Login {
 
     private static VBox info;
-
-    //The error message to show to users 
-    private static Text errMsg = new Text("Username ≥ 20 characters and/or contains ':' ");
     
     public static Scene getScreen() {
 
@@ -36,18 +33,24 @@ public class Login {
         button.setFocusTraversable(false);
         button.setOnAction(e -> {
             App.userName = tf.getText();
-
-            if(App.userName.length() < 20 && !App.userName.contains(":")) {
-                //Ensure name is less than 20 chars
+            Text errMsg = new Text();
+            errMsg.setFill(Color.RED);
+            
+            if(App.userName.length() == 0) {
+                errMsg.setText("Please provide user name");
+                info.getChildren().removeAll(info.getChildren());
+                info.getChildren().addAll(tf, errMsg);
+                System.out.println("ERROR: Please provide valid user name");
+            }
+            else if(App.userName.length() > 20 || App.userName.contains(":")) {
+                errMsg.setText("Username ≥ 20 characters and/or contains ':' ");
+                info.getChildren().removeAll(info.getChildren());
+                info.getChildren().addAll(tf, errMsg);
+                System.out.println("ERROR: username should be less than 20 characters and not contain :");
+            } else {
                 System.out.println("Username is " + App.userName);
                 sendHello(App.userName);
-            } else {
-                System.out.println("ERROR logging in: username should be less than 20 characters and not contain :");
-                
-                //Show error message
-                errMsg.setFill(Color.RED);
-                info.getChildren().addAll(errMsg);
-            } //TODO: show this on the screen
+            } 
         });
 
         //Constructs them 

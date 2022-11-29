@@ -1,5 +1,8 @@
 package com.example;
 
+import java.util.LinkedList;
+import java.util.List;
+
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Pos;
@@ -20,6 +23,8 @@ public class Selection {
         ListView<String> listView = new ListView<String>(names);
         listView.getSelectionModel().setSelectionMode(SelectionMode.SINGLE);
         listView.setFocusTraversable(false);
+        listView.setMaxWidth(300);
+        listView.setStyle("-fx-background-color: #90A4AE; -fx-font-size:14; ");
 
         Button button = new Button("Vote");
         button.setOnAction(e -> {
@@ -35,7 +40,7 @@ public class Selection {
 
         //Constructs them 
         VBox box = new VBox(listView, button);
-        box.setSpacing(100);
+        box.setSpacing(50);
         box.setAlignment(Pos.CENTER);
         box.setBackground(new Background(
             new BackgroundFill(Color.WHITE, null, null)
