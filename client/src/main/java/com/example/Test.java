@@ -7,7 +7,8 @@ import javafx.scene.control.ProgressBar;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 
-public class Client extends Application {
+/*Used for trying out things */
+public class Test extends Application {
     private static final double EPSILON = 0.0000005;
     @Override
     public void start(Stage stage) throws Exception {
