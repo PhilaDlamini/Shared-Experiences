@@ -40,6 +40,7 @@ void run_server(int port) {
     ChatLog log = ChatLog_new();
     
     while (1){
+        fprintf(stderr, "At top while loop\n");
         video_list vds = get_videos();
         int curr_phase = VOTING_PHASE;
  
@@ -122,6 +123,7 @@ void run_server(int port) {
             } else {
                 for(int i = 0; i <= fdmax; i++) {
                     if(FD_ISSET(i, &temp_set)) {
+                        bzero(buffer, MAX_MESSAGE_LENGTH);
                         printf("reading from socket\n");
                         
                         char message_type = -1;
@@ -131,20 +133,22 @@ void run_server(int port) {
                         buffer[0] = message_type;
 
                         if (n <= 0){
+                            fprintf(stderr, "In disconenct client\n");
                             close(i);
                             FD_CLR(i, &master_set);
                             // TODO: disconnect client
                         }
-                        bzero(buffer, MAX_MESSAGE_LENGTH);
                         read_entire_message(&buffer, i, message_type, &master_set);
                         
                         /* TODO: put in function? */
 
                         if (message_type == GOODBYE){
+                            fprintf(stderr, "In goodbyue\n");
                             List_remove(clientIDs, List_getClientID(clientIDs, i));
                             close(i);
                             FD_CLR(i, &master_set);
                         } else if (message_type == DOWNLOADED){
+                            fprintf(stderr, "IN DOWNLOADED\n");
                             downloaded_count++;
                         } else if (message_type == END_MOVIE){
                             ended_count++;
@@ -159,7 +163,7 @@ void run_server(int port) {
                                                   video_contents, video_size, 
                                                   playing_start_time, log);
                         } else if (curr_phase == PLAYING_PHASE && (message_type == TOGGLE || message_type == SEEK)){
-                            handle_media_controls(message_type, buffer, paused, clientIDs, i, &master_set, &fdmax, playing_start_time);
+                            handle_media_controls(message_type, buffer, paused, clientIDs, i, &master_set, &fdmax, playing_start_time, log);
                         } else if (message_type == CHAT){
                             send_chat(buffer, log, clientIDs, i, &master_set, &fdmax);
                         }
@@ -185,7 +189,9 @@ void run_server(int port) {
                     curr_phase = DOWNLOAD_PHASE;
                     
                     video_index = tally_votes(vote_tally, vds);
+                    fprintf(stderr, "Before sending movie to all\n");
                     send_movie_to_all(&master_set, &fdmax, clientIDs, vds, video_index, &video_contents, &video_size);
+                    fprintf(stderr, "After sending movie to all\n");
 
                     List_free(voted);
                     free(vote_tally);
@@ -240,11 +246,11 @@ void send_chat(char *message_data, ChatLog log, List clientIDs, int port_no, fd_
     send_to_all(*master_set, *fdmax, chats, 9 + received_chat_length);
 }
 
-handle_media_controls(char message_type, char *message_data, bool paused, 
+void handle_media_controls(char message_type, char *message_data, bool paused, 
                       List clientIDs, int port_no, fd_set *master_set, 
-                      int *fdmax, struct timespec video_start_time){
+                      int *fdmax, struct timespec video_start_time, ChatLog log){
     
-    struct Message read_message; 
+    //struct Message read_message; 
 
     Message media_control_message;
     char *controlling_client = List_getClientID(clientIDs, port_no);
@@ -252,13 +258,13 @@ handle_media_controls(char message_type, char *message_data, bool paused,
     /* TODO: send chats */
 
     if (message_type == TOGGLE){
-        memcpy(&read_message, message_data, 21);
+        //memcpy(&read_message, message_data, 21);
         
         media_control_message.type = TOGGLE_MOVIE;
         memcpy(media_control_message.data, controlling_client, 20);
         send_to_all(*master_set, *fdmax, media_control_message, 21);
     } else if (message_type == SEEK){
-        memcpy(&read_message, message_data, 9);
+        //memcpy(&read_message, message_data, 9);
         
         struct timespec curr_time;
         timespec_get(&curr_time, TIME_UTC);
@@ -336,36 +342,47 @@ void read_entire_message(char **data, int port_no, char message_type, fd_set *ma
             bytes_read = read(port_no, *data + 1, 20);
             break;
     }
-    if (bytes_read <= 0){
-        /* TODO: send error message */
-        close(port_no);
-        FD_CLR(port_no, master_set);
-    }
+    // if (bytes_read <= 0){
+    //     fprintf(stderr, "In read_entire close\n");
+    //     /* TODO: send error message */
+    //     close(port_no);
+    //     FD_CLR(port_no, master_set);
+    // }
 }
 
 void send_movie_to_all(fd_set *master_set, int *fdmax, List clientIDs, 
                        video_list vds, int video_index, char **video_contents, 
                        long *video_size){
     Message movie_selected_message;
+    bzero(&movie_selected_message, sizeof(movie_selected_message));
     movie_selected_message.type = MOVIE_SELECTED;
-    movie_selected_message.data[0] = video_index;
+    movie_selected_message.data[0] = (char) video_index;
+    // movie_selected_message.data[0] = 'h';
+    // movie_selected_message.data[1] = 'e';
+    // movie_selected_message.data[2] = 'l';
+    // movie_selected_message.data[3] = 'l';
+    // movie_selected_message.data[4] = 'o';
+
     
     send_to_all(*master_set, *fdmax, movie_selected_message, 2);
+    fprintf(stderr, "After sending movie_selected message\n");
 
     *video_contents = load_video(vds.videos[video_index], video_size);
     
     Message movie_content_message; 
     movie_content_message.type = MOVIE_CONTENT;
     long video_size_to_send =  htonll(*video_size);
+    fprintf(stderr, "Video size: %lu   video_size_to_send: %lu\n", *video_size, video_size_to_send);
     memcpy(movie_content_message.data, &video_size_to_send, sizeof(long));
     
     fd_set write_set = *master_set;
     if (clientIDs->size > 0){
-        fprintf(stderr, "In sned-movie-to-all if\n");
+        fprintf(stderr, "In send-movie-to-all if\n");
         select(*fdmax + 1, NULL, &write_set, NULL, NULL);
         for(int i = 0; i <= *fdmax; i++) {
             if(FD_ISSET(i, &write_set)){
                 int n = write(i, (char *) &movie_content_message, 1 + sizeof(long));
+                fprintf(stderr, "n is %d\n", n);
                 n = write(i, *video_contents, *video_size);
             }
         }
@@ -456,12 +473,15 @@ int make_socket(int port) {
 }
 
 void send_to_all(fd_set master_set, int fdmax, Message to_send, int message_size){
-    
-    
+    fprintf(stderr, "in send_to_all\n");
+    printf("Message size is %d\n", message_size);
     for (int i = 0; i <= fdmax; i++){
         if (FD_ISSET(i, &master_set)){
+            fprintf(stderr, "Type is: %c\n", to_send.type + '0');
+            
             fprintf(stderr, "actually sending\n");
             int n = write(i, (char *) &to_send, message_size);
+            fprintf(stderr, "n is %d\n", n);
         }
     }
     
@@ -471,7 +491,7 @@ void send_to_all(fd_set master_set, int fdmax, Message to_send, int message_size
     // printf("Message size is %d\n", message_size);
 
     // for(int i = 0; i <= fdmax; i++) {
-    //     if(FD_ISSET(i, &write_set)){
+    //     if (FD_ISSET(i, &write_set)){
     //         fprintf(stderr, "Type is: %c\n", to_send.type + '0');
     //         int n = write(i, (char *) &to_send, message_size);
     //     }

@@ -1,3 +1,5 @@
+#include <stdlib.h>
+#include <string.h>
 
 #define INIT_LOG_CAPACITY 100
 
