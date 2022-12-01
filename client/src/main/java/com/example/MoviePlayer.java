@@ -62,9 +62,15 @@ public class MoviePlayer {
         mediaPlayer.setOnError(() -> {
             System.out.println("media error "+ mediaPlayer.getError().toString());
 
-            //could do this but complicates things a little
-            // mediaPlayer.dispose();
-            // App.switchToScreen(App.MOVIE_PLAYER);
+            /* Try this?? seeking too soon??
+            mediaPlayer = new MediaPlayer(media);
+            mediaPlayer.setOnPlaying(() ->{
+                mediaPlayer.seek(durationBackup);
+                mediaPlayer.setOnPlaying(null);
+            });
+            mediaView.setMediaPlayer(mediaPlayer);
+            mediaPlayer.play();
+            */
 
         });
         
@@ -127,7 +133,7 @@ public class MoviePlayer {
         final ProgressBar mediaProgress = new ProgressBar(0.0);
         mediaProgress.setPrefWidth(App.VIDEO_WIDTH);
         mediaProgress.setPrefHeight(10);
-        
+
         progressTask = new Task<Void>() {
 
             @Override
@@ -154,7 +160,9 @@ public class MoviePlayer {
     //Starts playing the media
     public static void start() {
         System.out.println("Movie will start playing at " + App.startDuration + " seconds");
-        mediaPlayer.seek(Duration.seconds(App.startDuration));
+        mediaPlayer.setOnPlaying(() -> {
+            mediaPlayer.seek(Duration.seconds(App.startDuration)); //seeking too soon?
+        });
         mediaPlayer.play();
 
         //Start the progress thread
