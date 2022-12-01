@@ -62,7 +62,7 @@ public class MoviePlayer {
         mediaPlayer.setOnError(() -> {
             System.out.println("media error "+ mediaPlayer.getError().toString());
 
-            /* Try this?? seeking too soon??
+            /*=. Try this?? seeking too soon??
             mediaPlayer = new MediaPlayer(media);
             mediaPlayer.setOnPlaying(() ->{
                 mediaPlayer.seek(durationBackup);
@@ -160,9 +160,11 @@ public class MoviePlayer {
     //Starts playing the media
     public static void start() {
         System.out.println("Movie will start playing at " + App.startDuration + " seconds");
-        mediaPlayer.setOnPlaying(() -> {
+        // mediaPlayer.setOnPlaying(() -> {
             mediaPlayer.seek(Duration.seconds(App.startDuration)); //seeking too soon?
-        });
+            // mediaPlayer.setOnPlaying(null);
+        // });
+    
         mediaPlayer.play();
 
         //Start the progress thread
@@ -325,9 +327,9 @@ public class MoviePlayer {
         data[0] = App.SEEK;
 
         //Put the long
-        s = Long.reverseBytes(s);
         ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
         buffer.putLong(0, s);
+        buffer.flip();
         String arr = new String(buffer.array());
 
         for(int i = 0; i < 8; i++)
@@ -353,6 +355,7 @@ public class MoviePlayer {
             .stream()
             .map(m -> {
 
+                System.out.println("Curr message " + m);
                 String[] message = m.split(":");
                 Text name = new Text(message[0] + ":");
                 name.setFill(Color.web("#263238"));

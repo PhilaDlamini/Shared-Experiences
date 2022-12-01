@@ -43,7 +43,9 @@ public class Control implements Runnable {
                     break;
                 
                 case App.MOVIE_CONTENT:
-                    byte[] movie = App.read((int) App.readLong()); //TODO: what if movie bytes are more than INT_MAX
+                    
+                    //TODO: what if movie bytes are more than INT_MAX
+                    byte[] movie = App.read((int) App.readLong());
                     App.updateMovie(movie);
                     App.switchToScreen(App.MOVIE_PLAYER);
                     break;
@@ -57,7 +59,7 @@ public class Control implements Runnable {
                     break;
 
                 case App.TOGGLE_MOVIE:
-                    System.out.print("Got toggle from server");
+                    System.out.println("Got toggle from server");
                     MoviePlayer.togglePlayer();
                     break;
 
@@ -67,13 +69,20 @@ public class Control implements Runnable {
                     break;
 
                 case App.CHATS:
+                    System.out.println("Got chats");
 
                     //Read incoming chats
                     long len = App.readLong();
-                    String[] incoming = new String(App.read((int)len )).split("\0");
+                    System.out.println("Size of message was " + len);
+
+                    if(len != 0) {
+                        String[] incoming = new String(App.read((int)len)).split("\0");
+                        System.out.println("arr len: " + incoming.length);
                     
-                    //Append these messages to the old ones
-                    Collections.addAll(App.chats, incoming);
+                        //Append these messages to the old ones
+                        Collections.addAll(App.chats, incoming);
+                    }
+                
                     MoviePlayer.updateChats();
                     break;
 
