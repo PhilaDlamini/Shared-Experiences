@@ -84,7 +84,7 @@ void run_server(int port) {
             }
             
 
-            fd_set write_set;
+            fd_set write_set; // TODO: Remove?
             write_set = master_set;
             if (clientIDs->size > 0){
                 send_to_all(master_set, fdmax, movie_list_message, 
@@ -162,7 +162,7 @@ void run_server(int port) {
                             List_add(voted, NULL, i);
                         } else if (message_type == HELLO) {
                             handle_client_joining(curr_phase, i, clientIDs, 
-                                                  movie_list_message, buffer, 
+                                                  movie_list_message, video_index, buffer, 
                                                   video_contents, video_size, 
                                                   playing_start_time, log);
                         } else if (curr_phase == PLAYING_PHASE && (message_type == TOGGLE || message_type == SEEK)){
@@ -311,7 +311,7 @@ void handle_media_controls(char message_type, char *message_data, bool paused,
 }
 
 void handle_client_joining(int curr_phase, int port_no, List clientIDs, 
-                           Message movie_list_message, char *message_data, 
+                           Message movie_list_message, int video_index, char *message_data, 
                            char *video_contents, long video_size, 
                            struct timespec video_start_time, ChatLog log){
 
@@ -321,29 +321,61 @@ void handle_client_joining(int curr_phase, int port_no, List clientIDs,
     strcpy(new_client, read_message.data);
     List_add(clientIDs, new_client, port_no);
 
-    if (curr_phase == VOTING_PHASE){
-        fprintf(stderr, "In voting hello\n");
-        int n = write(port_no, (char *) &movie_list_message, 801);
-    } else {
+    //fprintf(stderr, "In voting hello\n");
+    int n = write(port_no, (char *) &movie_list_message, 801);
+
+    if (curr_phase != VOTING_PHASE){
+        Message movie_selected_message;
+        bzero(&movie_selected_message, sizeof(movie_selected_message));
+        movie_selected_message.type = MOVIE_SELECTED;
+        movie_selected_message.data[0] = (char) video_index;
+        write(port_no, (char *) &movie_selected_message, 2);
+        
         Message movie_content_message; 
         movie_content_message.type = MOVIE_CONTENT;
+        
         long video_size_to_send =  htonll(video_size);
         memcpy(movie_content_message.data, &video_size_to_send, sizeof(long));
-        if (curr_phase == DOWNLOAD_PHASE){
-            write(port_no, (char *) &movie_content_message, 1 + sizeof(long));
-            write(port_no, video_contents, video_size);
-        } else if (curr_phase == PLAYING_PHASE){
+        write(port_no, (char *) &movie_content_message, 1 + sizeof(long));
+        fprintf(stderr, "Video size is %lu\n", video_size);
+        write(port_no, video_contents, video_size);
+
+        if (curr_phase == PLAYING_PHASE){
             Message start_message; 
             start_message.type = START;
             struct timespec curr_time;
             timespec_get(&curr_time, TIME_UTC);
 
             long time_since_video_start =  curr_time.tv_sec - video_start_time.tv_sec;
-            time_since_video_start = htonll(video_start_time.tv_sec);
+            time_since_video_start = htonll(time_since_video_start);
             memcpy(start_message.data, &time_since_video_start, sizeof(long));
             write(port_no, (char *) &start_message, 1 + sizeof(long));
         }
     }
+
+
+    // if (curr_phase == VOTING_PHASE){
+    //     fprintf(stderr, "In voting hello\n");
+    //     int n = write(port_no, (char *) &movie_list_message, 801);
+    // } else {
+    //     Message movie_content_message; 
+    //     movie_content_message.type = MOVIE_CONTENT;
+    //     long video_size_to_send =  htonll(video_size);
+    //     memcpy(movie_content_message.data, &video_size_to_send, sizeof(long));
+    //     write(port_no, (char *) &movie_content_message, 1 + sizeof(long));
+    //     write(port_no, video_contents, video_size);
+    //     if (curr_phase == PLAYING_PHASE){
+    //         Message start_message; 
+    //         start_message.type = START;
+    //         struct timespec curr_time;
+    //         timespec_get(&curr_time, TIME_UTC);
+
+    //         long time_since_video_start =  curr_time.tv_sec - video_start_time.tv_sec;
+    //         time_since_video_start = htonll(video_start_time.tv_sec);
+    //         memcpy(start_message.data, &time_since_video_start, sizeof(long));
+    //         write(port_no, (char *) &start_message, 1 + sizeof(long));
+    //     }
+    // }
 
     /* Send all prior chat messages */
     struct Message chat_log_message; 
