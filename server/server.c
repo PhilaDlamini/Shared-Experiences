@@ -33,6 +33,9 @@ void run_server(int port) {
     FD_SET(master_socket, &master_set); 
     int fdmax = master_socket;
 
+    //Key states for media control chats
+    int play_status = PLAYING;
+
     // signal(SIGPIPE, SIG_IGN);
 
 
@@ -163,7 +166,7 @@ void run_server(int port) {
                                                   video_contents, video_size, 
                                                   playing_start_time, log);
                         } else if (curr_phase == PLAYING_PHASE && (message_type == TOGGLE || message_type == SEEK)){
-                            handle_media_controls(message_type, buffer, paused, clientIDs, i, &master_set, &fdmax, playing_start_time, log);
+                            handle_media_controls(message_type, buffer, paused, clientIDs, i, &master_set, &fdmax, playing_start_time, log, &play_status);
                         } else if (message_type == CHAT){
                             send_chat(buffer, log, clientIDs, i, &master_set, &fdmax);
                         }
@@ -223,78 +226,88 @@ void run_server(int port) {
 }
 
 void send_chat(char *message_data, ChatLog log, List clientIDs, int port_no, fd_set *master_set, int *fdmax){
-    
-    for(int i = 0; i < 420; i++)
-        printf("%c", message_data[i]);
+    long name_len = strlen(message_data + 1);
+    long r_chat_len = strlen(message_data + 21);
 
-
-    struct Message received_chat_message; 
-    memcpy(&received_chat_message, message_data, 421);
-
-    long received_chat_length = 0;
-    for (int i = 20; i < 421; i++){
-        received_chat_length++;
-        if (received_chat_message.data[i] == '\0'){
-            break;
-        }
-    }
-    printf("Received chat length %ld\n", received_chat_length);
-
-    ChatLog_add(log, received_chat_message.data);
-
+    //Build the message struct 
     struct Message chats;
     chats.type = CHATS;
-    long received_chat_length_to_send = htonll(received_chat_length);
-    memcpy(chats.data, &received_chat_length_to_send, 
-           sizeof(received_chat_length_to_send));
-    memcpy(chats.data + sizeof(received_chat_length_to_send), 
-           received_chat_message.data, received_chat_length);
+    long chat_len = htonll(r_chat_len + name_len + 1);
+    memcpy(chats.data, &chat_len, sizeof(chat_len));
+    memcpy(chats.data + sizeof(chat_len), message_data + 1, name_len);
+    chats.data[sizeof(chat_len) + name_len] = ':';
+    memcpy(chats.data + sizeof(chat_len) + name_len + 1, message_data + 21, r_chat_len);
+    chats.data[sizeof(chat_len) + name_len + r_chat_len + 1] = '\0';
    
-    printf("---------------------------------\n");
-    for(int i = 0; i < 8 + received_chat_length; i++) {
-        printf("%c ", chats.data[i]);
-    }
-    printf("\n");
-    send_to_all(*master_set, *fdmax, chats, 9 + received_chat_length);
+    // printf("Message to send\n");
+    // for(int i = 0; i <= 8 + name_len + r_chat_len + 1; i++) {
+    //     if(chats.data[i] == '\0') printf("0");
+    //     else printf("%c ", chats.data[i]);
+    // }
+
+    ChatLog_add(log, chats.data + sizeof(chat_len));
+    send_to_all(*master_set, *fdmax, chats, 11 + name_len + r_chat_len);
 }
 
 void handle_media_controls(char message_type, char *message_data, bool paused, 
                       List clientIDs, int port_no, fd_set *master_set, 
-                      int *fdmax, struct timespec video_start_time, ChatLog log){
+                      int *fdmax, struct timespec video_start_time, ChatLog log, 
+                      int *play_status){
     
     //struct Message read_message; 
 
     printf("In handle media controls\n");
     Message media_control_message;
     char *controlling_client = List_getClientID(clientIDs, port_no);
+    printf("Controlling client was %s\n", controlling_client);
+    int client_name_len = strlen(controlling_client);
 
-    /* TODO: send chats */
+    //For sending chats
+    struct Message chats;
+    char *message;
+    long chat_len;
 
-    if (message_type == TOGGLE){
-        //memcpy(&read_message, message_data, 21);
-        
+    if (message_type == TOGGLE){        
         media_control_message.type = TOGGLE_MOVIE;
         send_to_all(*master_set, *fdmax, media_control_message, 1);
+
+        //Build message
+        chats.type = CHATS;
+        if(*play_status == PLAYING) {
+            message = ":PAUSED MOVIE";
+            *play_status = PAUSED;
+        } else  {
+            message = ":RESUMED MOVIE";
+            *play_status = PLAYING;
+        }
+
+        chat_len = htonll(client_name_len + strlen(message) + 1);
+        memcpy(chats.data, &chat_len, sizeof(chat_len));
+        memcpy(chats.data + sizeof(chat_len), controlling_client, client_name_len);
+        memcpy(chats.data + sizeof(chat_len) + client_name_len, message, strlen(message));
+        chats.data[sizeof(chat_len) + client_name_len + strlen(message)] = '\0';
+
     } else if (message_type == SEEK){
-
-        printf("Got seek from client \n");
-        //memcpy(&read_message, message_data, 9);
         
-        struct timespec curr_time;
-
         long seconds;
         memcpy(&seconds, message_data + 1, sizeof(seconds));
-        printf("got: %ld\n", seconds);
-        printf("flipped to: %ld\n", htonll(seconds));
-
-        // timespec_get(&curr_time, TIME_UTC);
-        // long seconds_since_started = curr_time.tv_sec - video_start_time.tv_sec;
-        // long seconds_since_started_to_send = htonll(seconds_since_started);
-
         media_control_message.type = SEEK_MOVIE;
         memcpy(media_control_message.data, &seconds, sizeof(seconds));
         send_to_all(*master_set, *fdmax, media_control_message, 9);
+
+        //Build struct (perhaps this could be a function?)
+        message = ":SEEKED MOVIE"; //TODO: figure out if forward/backward
+        chat_len = htonll(client_name_len + strlen(message) + 1);
+        memcpy(chats.data, &chat_len, sizeof(chat_len));
+        memcpy(chats.data + sizeof(chat_len), controlling_client, client_name_len);
+        memcpy(chats.data + sizeof(chat_len) + client_name_len, message, strlen(message));
+        chats.data[sizeof(chat_len) + client_name_len + strlen(message)] = '\0';
+        
     }
+
+    //Nofity clients and log event
+    send_to_all(*master_set, *fdmax, chats, 10 + client_name_len + strlen(message));
+    ChatLog_add(log, chats.data + sizeof(chat_len));
 }
 
 void handle_client_joining(int curr_phase, int port_no, List clientIDs, 
@@ -388,12 +401,6 @@ void send_movie_to_all(fd_set *master_set, int *fdmax, List clientIDs,
     bzero(&movie_selected_message, sizeof(movie_selected_message));
     movie_selected_message.type = MOVIE_SELECTED;
     movie_selected_message.data[0] = (char) video_index;
-    // movie_selected_message.data[0] = 'h';
-    // movie_selected_message.data[1] = 'e';
-    // movie_selected_message.data[2] = 'l';
-    // movie_selected_message.data[3] = 'l';
-    // movie_selected_message.data[4] = 'o';
-
     
     send_to_all(*master_set, *fdmax, movie_selected_message, 2);
     fprintf(stderr, "After sending movie_selected message\n");

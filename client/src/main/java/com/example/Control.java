@@ -44,7 +44,7 @@ public class Control implements Runnable {
                 
                 case App.MOVIE_CONTENT:
                     
-                    //TODO: what if movie bytes are more than INT_MAX
+                    //TODO: what if movie bytes are more than INT_MAX (mkbhd video gives problem)
                     byte[] movie = App.read((int) App.readLong());
                     App.updateMovie(movie);
                     App.switchToScreen(App.MOVIE_PLAYER);

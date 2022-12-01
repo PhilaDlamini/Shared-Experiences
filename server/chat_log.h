@@ -2,7 +2,8 @@
 #include <string.h>
 
 #define INIT_LOG_CAPACITY 100
-
+#include <stdlib.h>
+#include <stdio.h>
 /*
  * Stores the client IDs
  */

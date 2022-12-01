@@ -39,6 +39,8 @@ typedef struct Message Message;
 #define END_CURRENT_VIDEO 4
 
 /* Message Types */
+#define PAUSED 0
+#define PLAYING 1
 #define HELLO 1
 #define MOVIES 2
 #define VOTE 3
@@ -72,7 +74,8 @@ void handle_client_joining(int curr_phase, int port_no, List clientIDs,
                            struct timespec video_start_time, ChatLog log);
 void handle_media_controls(char message_type, char *message_data, bool paused, 
                            List clientIDs, int port_no, fd_set *master_set, 
-                           int *fdmax, struct timespec video_start_time, ChatLog log);
+                           int *fdmax, struct timespec video_start_time, ChatLog log, 
+                           int *play_status);
 
 void read_entire_message(char **data, int port_no, char message_type, fd_set *master_set);
 

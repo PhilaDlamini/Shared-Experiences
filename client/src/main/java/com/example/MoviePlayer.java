@@ -62,15 +62,15 @@ public class MoviePlayer {
         mediaPlayer.setOnError(() -> {
             System.out.println("media error "+ mediaPlayer.getError().toString());
 
-            /*=. Try this?? seeking too soon??
-            mediaPlayer = new MediaPlayer(media);
-            mediaPlayer.setOnPlaying(() ->{
-                mediaPlayer.seek(durationBackup);
-                mediaPlayer.setOnPlaying(null);
-            });
-            mediaView.setMediaPlayer(mediaPlayer);
-            mediaPlayer.play();
-            */
+            //Try this?? seeking too soon??
+            // mediaPlayer = new MediaPlayer(media);
+            // mediaPlayer.setOnPlaying(() ->{
+            //     mediaPlayer.seek(Duration.seconds(App.startDuration)); //seeking too soon?        
+            //     mediaPlayer.setOnPlaying(null);
+            // });
+            // mediaView.setMediaPlayer(mediaPlayer);
+            // mediaPlayer.play();
+            
 
         });
         
@@ -160,11 +160,7 @@ public class MoviePlayer {
     //Starts playing the media
     public static void start() {
         System.out.println("Movie will start playing at " + App.startDuration + " seconds");
-        // mediaPlayer.setOnPlaying(() -> {
-            mediaPlayer.seek(Duration.seconds(App.startDuration)); //seeking too soon?
-            // mediaPlayer.setOnPlaying(null);
-        // });
-    
+        mediaPlayer.seek(Duration.seconds(App.startDuration));      
         mediaPlayer.play();
 
         //Start the progress thread
@@ -354,16 +350,23 @@ public class MoviePlayer {
             App.chats
             .stream()
             .map(m -> {
-
                 System.out.println("Curr message " + m);
                 String[] message = m.split(":");
-                Text name = new Text(message[0] + ":");
-                name.setFill(Color.web("#263238"));
+                String person = message[0];
+                String chat = message[1];
+                boolean controls = 
+                    chat.equals("PAUSED MOVIE") ||
+                    chat.equals("RESUMED MOVIE") ||
+                    chat.equals("SEEKED MOVIE");
+
+                Text name = new Text(person + ":");
+                name.setFill(controls ? Color.web("#EF5350") : Color.web("#263238"));
                 name.setFont(Font.font("Verdana", FontWeight.BOLD,null, 13));
-                Text chat = new Text(message[1]);
-                chat.setFont(Font.font("Verdana", 12));
-                chat.setWrappingWidth(150);
-                HBox box = new HBox(name, chat);
+                Text c = new Text(chat);
+                c.setFont(Font.font("Verdana", 12));
+                c.setWrappingWidth(150);
+                if(controls) c.setFill(Color.web("#EF5350"));
+                HBox box = new HBox(name, c);
                 box.setSpacing(5);
                 return box; 
             })
