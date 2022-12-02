@@ -5,9 +5,17 @@ import java.util.*;
  * The main control thread
  */
 public class Control implements Runnable {
+    
+    public Thread t;
+    
+    Control () {
+        t = new Thread(this);
+        t.start();
+    }
+
     public void run() {
 
-        while(true) {
+        while(!Thread.interrupted()) {
             int type = App.read(1)[0];
 
             switch(type) {
@@ -44,6 +52,7 @@ public class Control implements Runnable {
                     
                     //TODO: what if movie bytes are more than INT_MAX (mkbhd video gives problem)
                     byte[] movie = App.read((int) App.readLong());
+                    System.out.println("Movie Content Byte Array Length: " + movie.length);
                     App.updateMovie(movie);
                     App.switchToScreen(App.MOVIE_PLAYER);
                     break;

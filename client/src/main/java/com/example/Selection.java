@@ -1,8 +1,5 @@
 package com.example;
 
-import java.util.LinkedList;
-import java.util.List;
-
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Pos;

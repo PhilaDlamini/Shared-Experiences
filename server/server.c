@@ -43,6 +43,12 @@ void run_server(int port) {
     ChatLog log = ChatLog_new();
     
     while (1){
+        
+        if (clientIDs->size == 0){
+            ChatLog_free(log);
+            log = ChatLog_new();
+        }
+        
         fprintf(stderr, "At top while loop\n");
         video_list vds = get_videos();
         int curr_phase = VOTING_PHASE;
@@ -146,6 +152,28 @@ void run_server(int port) {
                         /* TODO: put in function? */
 
                         if (message_type == GOODBYE){
+                            
+                                
+                            char *controlling_client = List_getClientID(clientIDs, i);
+                            printf("Controlling client was %s\n", controlling_client);
+                            int client_name_len = strlen(controlling_client);
+                                
+                            struct Message chats;
+                            chats.type = CHATS;
+                            char *message;
+                            long chat_len;
+
+                            message = ":left"; //TODO: figure out if forward/backward
+                            chat_len = htonll(client_name_len + strlen(message) + 1);
+                            memcpy(chats.data, &chat_len, sizeof(chat_len));
+                            memcpy(chats.data + sizeof(chat_len), controlling_client, client_name_len);
+                            memcpy(chats.data + sizeof(chat_len) + client_name_len, message, strlen(message));
+                            chats.data[sizeof(chat_len) + client_name_len + strlen(message)] = '\0';
+                            
+                            send_to_all(master_set, fdmax, chats, 10 + client_name_len + strlen(message));
+                            ChatLog_add(log, chats.data + sizeof(chat_len));
+                            
+                            
                             fprintf(stderr, "In goodbyue\n");
                             List_remove(clientIDs, List_getClientID(clientIDs, i));
                             close(i);
@@ -214,7 +242,8 @@ void run_server(int port) {
                 printf("About to send start to all\n");
                 send_to_all(master_set, fdmax, start_message, 1 + sizeof(long));
                 fprintf(stderr, "finished sending start to all\n");
-            } else if (curr_phase == PLAYING_PHASE && ended_count >= clientIDs->size){
+            } else if ((curr_phase == PLAYING_PHASE && ended_count >= clientIDs->size) 
+                       || clientIDs->size == 0){
                 curr_phase = END_CURRENT_VIDEO;
             }
             fprintf(stderr, "End loop iteration\n");
@@ -289,6 +318,8 @@ void handle_media_controls(char message_type, char *message_data, bool paused,
 
     } else if (message_type == SEEK){
         
+        /* TODO: send backward or forward */
+
         long seconds;
         memcpy(&seconds, message_data + 1, sizeof(seconds));
         media_control_message.type = SEEK_MOVIE;
@@ -341,15 +372,19 @@ void handle_client_joining(int curr_phase, int port_no, List clientIDs,
         write(port_no, video_contents, video_size);
 
         if (curr_phase == PLAYING_PHASE){
-            Message start_message; 
-            start_message.type = START;
-            struct timespec curr_time;
-            timespec_get(&curr_time, TIME_UTC);
+            char message_type;
+            read(port_no, &message_type, 1);
+            if (message_type == DOWNLOADED){
+                Message start_message; 
+                start_message.type = START;
+                struct timespec curr_time;
+                timespec_get(&curr_time, TIME_UTC);
 
-            long time_since_video_start =  curr_time.tv_sec - video_start_time.tv_sec;
-            time_since_video_start = htonll(time_since_video_start);
-            memcpy(start_message.data, &time_since_video_start, sizeof(long));
-            write(port_no, (char *) &start_message, 1 + sizeof(long));
+                long time_since_video_start =  curr_time.tv_sec - video_start_time.tv_sec;
+                time_since_video_start = htonll(time_since_video_start);
+                memcpy(start_message.data, &time_since_video_start, sizeof(long));
+                write(port_no, (char *) &start_message, 1 + sizeof(long));
+            }
         }
     }
 
