@@ -1,7 +1,5 @@
 package com.example;
 import java.util.*;
-import javafx.application.Platform;
-import javafx.scene.media.MediaPlayer;
 
 /*
  * The main control thread

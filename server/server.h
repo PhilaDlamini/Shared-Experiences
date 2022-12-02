@@ -69,7 +69,7 @@ void run_server(int port);
 int make_socket(int port);
 
 void handle_client_joining(int curr_phase, int port_no, List clientIDs, 
-                           Message movie_list_message, char *message_data, 
+                           Message movie_list_message, int video_index, char *message_data, 
                            char *video_contents, long video_size, 
                            struct timespec video_start_time, ChatLog log);
 void handle_media_controls(char message_type, char *message_data, bool paused, 

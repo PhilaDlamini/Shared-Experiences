@@ -199,7 +199,7 @@ public class MoviePlayer {
             sendGoodbye(App.userName);
             System.out.println("Logout pressed");
             mediaPlayer.dispose();
-            App.switchToScreen(App.LOGIN);
+            App.close();
         });
 
         //Displays user name at top 
