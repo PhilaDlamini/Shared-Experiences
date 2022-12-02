@@ -7,9 +7,17 @@ import javafx.scene.media.MediaPlayer;
  * The main control thread
  */
 public class Control implements Runnable {
+    
+    public Thread t;
+    
+    Control () {
+        t = new Thread(this);
+        t.start();
+    }
+
     public void run() {
 
-        while(true) {
+        while(!Thread.interrupted()) {
             int type = App.read(1)[0];
 
             switch(type) {

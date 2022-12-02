@@ -29,3 +29,8 @@ void ChatLog_add(ChatLog log, char *to_add){
     // printf("\n");
     return;
 }
+
+void ChatLog_free(ChatLog log){
+    free(log->chats);
+    free(log);
+}

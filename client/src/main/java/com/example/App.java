@@ -13,6 +13,8 @@ import java.util.LinkedList;
  * JavaFX App
  */
 public class App extends Application {
+    private static Control control;
+    public static volatile boolean running = true;
     private static Socket socket;
     private static PrintWriter out;
     private static InputStream in;
@@ -122,9 +124,8 @@ public class App extends Application {
             System.exit(-1);
         } 
 
-        //Continously reads input and processes it
-        Thread t = new Thread(new Control());
-        t.start();
+        //Continously reads input and processes i
+        control = new Control();
 
         //Launch the application
         Application.launch(args);
@@ -147,6 +148,25 @@ public class App extends Application {
         } catch (IOException e) {
             System.out.println("ERR updating movie file " + e.getMessage());
         }
+    }
+
+    //closes the app
+    public static void close() {
+        try {
+            running = false;
+            
+            control.t.interrupt();
+            
+            // control.interrupt();
+            // control.sleep(5000);
+            socket.close();
+            //control.join();
+            // System.exit(0);
+            Platform.exit();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        
     }
 
 }

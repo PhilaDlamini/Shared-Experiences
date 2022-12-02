@@ -17,4 +17,4 @@ ChatLog ChatLog_new();
 
 void ChatLog_add(ChatLog log, char *to_add);
 
-void free_log(ChatLog log);
+void ChatLog_free(ChatLog log);
