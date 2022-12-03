@@ -1,4 +1,5 @@
 package com.example;
+import java.io.*;
 import java.util.*;
 
 /*
@@ -48,6 +49,26 @@ public class Control implements Runnable {
                     App.movieName = App.movies.get(selection); 
                     break;
                 
+                case App.IMAGE:
+                    String sender = new String(App.read(20));
+                    byte[] data = App.read((int) App.readLong()); //Again, this will be a problem
+                    
+                    //Create the file
+                    File imgFile = null;
+                    try {
+                        imgFile = File.createTempFile("IMAGE", "");
+                        imgFile.deleteOnExit();
+                        OutputStream o = new FileOutputStream(imgFile);
+                        o.write(data);
+                        o.close();
+                    } catch (IOException e) {
+                        System.out.println("Encountered err saving image " + e.getMessage());
+                    }
+
+                    App.images.add(new ImageInfo(sender, imgFile));
+                    System.out.println("Got image! Sender was " + sender);
+                    break;
+
                 case App.MOVIE_CONTENT:
                     
                     //TODO: what if movie bytes are more than INT_MAX (mkbhd video gives problem)

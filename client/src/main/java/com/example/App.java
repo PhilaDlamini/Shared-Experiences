@@ -7,6 +7,7 @@ import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedList;
 
 /**
@@ -19,7 +20,7 @@ public class App extends Application {
     private static PrintWriter out;
     private static InputStream in;
     private static Stage stage;
-    public static final int SCREEN_W = 800, SCREEN_H = 600, VIDEO_WIDTH = 500,
+    public static final int SCREEN_W = 900, SCREEN_H = 600, VIDEO_WIDTH = 500,
     VIDEO_HEIGHT = 350;
     public static int PORT;
  
@@ -27,13 +28,15 @@ public class App extends Application {
     public static final int HELLO = 1, MOVIES = 2, VOTE = 3, MOVIE_SELECTED  = 4,
     MOVIE_CONTENT = 5, DOWNLOADED = 6, START = 7, END_MOVIE = 8, GOODBYE = 9, 
     TOGGLE = 10, TOGGLE_MOVIE = 11, SEEK = 12, SEEK_MOVIE = 13, CHAT = 14,
-    CHATS = 15;
+    CHATS = 15, IMAGE = 16;
 
     //The user information 
+    public static int imageIndex = 0;
     public static String userName;
     public static String movieName = "unknown.mp4";
     public static LinkedList<String> movies = new LinkedList<>();
     public static ArrayList<String> chats = new ArrayList<>();
+    public static LinkedList<ImageInfo> images = new LinkedList<>();
     public static long startDuration;
     public static File movieFile;
 
@@ -41,7 +44,6 @@ public class App extends Application {
     public static final char LOGIN = 'L';
     public static final char SELECTION = 'S';
     public static final char MOVIE_PLAYER = 'M';
-
     
     //Reads the given number of bytes from the socket
     public static byte[] read(int n) {
@@ -70,6 +72,11 @@ public class App extends Application {
         buffer.put(read(8));
         buffer.flip();
         return buffer.getLong();
+    }
+
+    //Returns the stage
+    public static Stage getStage() {
+        return stage;
     }
 
     //Writes the specified number of bytes
@@ -110,26 +117,11 @@ public class App extends Application {
         stage.setScene(Login.getScreen());
         stage.setResizable(false);
 		stage.show();
-    }
 
-    public static void main(String[] args) {
-        //Connect with server
-        PORT = Integer.parseInt(args[0]);
-        try {
-            socket = new Socket(InetAddress.getByName("localhost").getHostAddress(), PORT);
-            out = new PrintWriter(socket.getOutputStream(), true);
-            in = socket.getInputStream();
-        } catch (Exception e) {
-            System.out.println("Client encountered error: " + e.getMessage());
-            System.exit(-1);
-        } 
-
-        //Continously reads input and processes i
-        control = new Control();
-
-        //Launch the application
-        Application.launch(args);
-
+        //Remove this
+        ByteBuffer b = ByteBuffer.allocate(Short.BYTES);
+        b.putShort(0, (short) 0);
+        chats.add(new String(b.array()));
     }
 
     //Updates the movie file 
@@ -167,6 +159,26 @@ public class App extends Application {
             e.printStackTrace();
         }
         
+    }
+    
+    public static void main(String[] args) {
+        //Connect with server
+        PORT = Integer.parseInt(args[0]);
+        try {
+            socket = new Socket(InetAddress.getByName("localhost").getHostAddress(), PORT);
+            out = new PrintWriter(socket.getOutputStream(), true);
+            in = socket.getInputStream();
+        } catch (Exception e) {
+            System.out.println("Client encountered error: " + e.getMessage());
+            System.exit(-1);
+        } 
+
+        //Continously reads input and processes it
+        control = new Control();
+
+        //Launch the application
+        Application.launch(args);
+
     }
 
 }

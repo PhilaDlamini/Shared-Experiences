@@ -20,6 +20,7 @@
 int make_socket(int port);
 void start_server(int port);
 void send_video(int fd);
-void process(char *data, int fd);
+void send_image(int fd);
+void process(char *data, int fd, int n);
 int max(int a, int b);
 #endif

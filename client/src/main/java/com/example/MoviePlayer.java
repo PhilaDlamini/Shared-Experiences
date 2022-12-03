@@ -1,12 +1,17 @@
 package com.example;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOError;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.stream.Collectors;
-
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
@@ -18,6 +23,8 @@ import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ScrollPane.ScrollBarPolicy;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.Border;
@@ -31,6 +38,8 @@ import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
+import javafx.stage.FileChooser;
+import javafx.stage.FileChooser.ExtensionFilter;
 import javafx.util.Duration;
 import javafx.scene.media.Media;
 import javafx.scene.media.MediaPlayer;
@@ -42,6 +51,9 @@ public class MoviePlayer {
     private static MediaView mediaView = new MediaView();
     private static ScrollPane pane;
     private static MediaPlayer mediaPlayer;
+    private static TextField textInput;
+    private static boolean imageSelected = false;
+    private static File imageFile;
 
     //The progress task 
     private static Task<Void> progressTask;
@@ -76,7 +88,7 @@ public class MoviePlayer {
         
         mediaPlayer.setOnReady(() -> {
             //Send Downloaded message
-            App.write(new char[]{App.DOWNLOADED}, 1);
+            // App.write(new char[]{App.DOWNLOADED}, 1);
             mediaView.setMediaPlayer(mediaPlayer);
         }); 
 
@@ -215,30 +227,37 @@ public class MoviePlayer {
         vid_mes_area.setBackground(new Background(new BackgroundFill(Color.WHITE, null, null)));
 
         //The send message area
-        TextField tf = new TextField();
-        tf.setMinWidth(App.VIDEO_WIDTH);
-        tf.setMinHeight(50);
-        tf.setPromptText("Type message");
-        tf.setFocusTraversable(false);
-        tf.setStyle("-fx-border-radius: 20; -fx-background-radius: 20;");
-
+        textInput = new TextField();
+        textInput.setFont(Font.font(13));
+        textInput.setMinWidth(App.VIDEO_WIDTH);
+        textInput.setMinHeight(50);
+        textInput.setPromptText("Type message");
+        textInput.setFocusTraversable(false);
+        textInput.setStyle("-fx-border-radius: 20; -fx-background-radius: 20;");
+        textInput.setPadding(new Insets(0, 40, 0, 8));
+        StackPane inputs = new StackPane(textInput, imagePicker());
+        inputs.setAlignment(Pos.CENTER_RIGHT);
+        
         Button sendMesage = new Button("Send");
         sendMesage.setOnAction(e -> {
-            System.out.println("Sending message: " + tf.getText());
+            System.out.println("Sending message: " + textInput.getText());
 
             //Ensure message is less than 400 char
-            String message = tf.getText();
-
+            String message = textInput.getText();
             int n = message.length();
             if(n > 0 && n < 400) {
                 sendChat(App.userName, message);
-            } else System.out.println("ERROR: message size == 0 or >= 400 chars");
+            } else System.out.println("Chat not set: message size == 0 or >= 400 chars");
 
+            //Also send the image 
+            if(imageSelected)
+                sendImage();
+            
             //Reset the field
-            tf.setText("");
+            textInput.setText("");
         });
 
-        HBox send = new HBox(15, tf, sendMesage);
+        HBox send = new HBox(15, inputs, sendMesage);
         send.setAlignment(Pos.CENTER_LEFT);
 
         //The column of all elements
@@ -252,6 +271,82 @@ public class MoviePlayer {
         vbox.setBackground(new Background(new BackgroundFill(Color.WHITE, null, null)));
         return vbox;
     }
+
+    //Picks an image 
+    private static HBox imagePicker() {
+
+        //The file chooser
+        final FileChooser chooser = new FileChooser();
+
+        chooser.getExtensionFilters().addAll(
+            new ExtensionFilter("Image Files", "*.png", "*.jpg", "*.heif"));
+        chooser.setTitle("Select Image");
+
+
+        //The circle
+        Circle circle = new Circle(10, Color.web("#78909C"));
+        Text plus = new Text("+");
+        plus.setFont(Font.font("Verdana", FontWeight.BOLD,null, 16));
+        plus.setFill(Color.WHITE);
+        Text cross = new Text("x");
+        cross.setFont(Font.font("Verdana", FontWeight.BOLD,null, 13));
+        cross.setFill(Color.WHITE);
+
+        // The pane of all things
+        HBox row = new HBox();
+        row.setSpacing(8);
+        row.setAlignment(Pos.CENTER);
+        row.setPadding(new Insets(0, 8, 0, 0));
+        row.setMaxWidth(42);
+
+        //Holds the image
+        ImageView image = new ImageView();
+        image.setFitHeight(24);
+        image.setFitWidth(24);
+        image.setOnMouseClicked(e -> {
+            //TODO: expand image for view to see 
+        });
+
+        StackPane pane = new StackPane(circle, plus);
+        pane.setAlignment(Pos.CENTER);
+        pane.setMaxWidth(circle.getRadius());
+        pane.setMaxHeight(circle.getRadius());
+        pane.setOnMouseClicked(e -> {
+            System.out.println("Moused pressed!");
+
+            if(!imageSelected) {
+                imageFile = chooser.showOpenDialog(App.getStage());
+            
+                if(imageFile != null) {
+
+                    //Displaly it
+                    image.setImage(new Image(imageFile.toURI().toString()));
+                    row.getChildren().add(0, image);
+
+                    //Change to cross
+                    pane.getChildren().remove(plus);
+                    pane.getChildren().add(cross);
+                    imageSelected = true;
+                    textInput.setPadding(new Insets(0, 64, 0, 8));
+
+                    System.out.println("File was chosen!");
+                }
+
+            } else {
+
+                //remove the image and switch to the plus
+                row.getChildren().remove(image);
+                pane.getChildren().remove(cross);
+                pane.getChildren().add(plus);
+                textInput.setPadding(new Insets(0, 40, 0, 8));
+                imageSelected = false;
+            }
+        });
+        row.getChildren().addAll(pane);
+
+
+        return row;
+    } 
 
     //Returns all the messages 
     private static ScrollPane messages() {
@@ -351,24 +446,51 @@ public class MoviePlayer {
             .stream()
             .map(m -> {
                 System.out.println("Curr message " + m);
-                String[] message = m.split(":");
-                String person = message[0];
-                String chat = message[1];
-                boolean controls = 
-                    chat.equals("PAUSED MOVIE") ||
-                    chat.equals("RESUMED MOVIE") ||
-                    chat.equals("SEEKED MOVIE");
 
-                Text name = new Text(person + ":");
-                name.setFill(controls ? Color.web("#EF5350") : Color.web("#263238"));
-                name.setFont(Font.font("Verdana", FontWeight.BOLD,null, 13));
-                Text c = new Text(chat);
-                c.setFont(Font.font("Verdana", 12));
-                c.setWrappingWidth(150);
-                if(controls) c.setFill(Color.web("#EF5350"));
-                HBox box = new HBox(name, c);
-                box.setSpacing(5);
-                return box; 
+                if(m.length() > 2) {
+                    String[] message = m.split(":");
+                    String person = message[0];
+                    String chat = message[1];
+                    boolean controls = 
+                        chat.equals("PAUSED MOVIE") ||
+                        chat.equals("RESUMED MOVIE") ||
+                        chat.equals("LEFT") ||
+                        chat.equals("SEEKED MOVIE");
+
+                    Text name = new Text(person + ":");
+                    name.setFill(controls ? Color.web("#EF5350") : Color.web("#263238"));
+                    name.setFont(Font.font("Verdana", FontWeight.BOLD,null, 13));
+    
+                    Text c = new Text(chat);
+                    c.setFont(Font.font("Verdana", 12));
+                    c.setWrappingWidth(150);
+                    if(controls) c.setFill(Color.web("#EF5350"));
+                    HBox box = new HBox(name, c);
+                    box.setSpacing(5);
+                    return box; 
+                } else {
+
+                    //This is an image
+                    ImageInfo info = App.images.get(App.imageIndex++);
+                    ImageView img = new ImageView(info.getURL());
+                    img.setPreserveRatio(true);
+                    img.setFitHeight(250);
+                    img.setFitWidth(250);
+                    Rectangle clip = new Rectangle(img.getFitWidth(), img.getFitHeight());
+                    clip.setArcWidth(30);
+                    clip.setArcHeight(30);
+                    img.setClip(clip);
+                    
+                    Text name = new Text(info.getSender());
+                    name.setFill(Color.web("#263238"));
+                    name.setFont(Font.font("Verdana", FontWeight.BOLD,null, 13));
+    
+                    VBox box = new VBox(name, img);
+                    box.setSpacing(2);
+                    box.setPadding(new Insets(8, 0, 0, 0));
+                    return box;
+
+                }
             })
             .collect(Collectors.toList()));
         });
@@ -385,6 +507,47 @@ public class MoviePlayer {
         if(mediaPlayer != null) {
             mediaPlayer.stop();
             mediaPlayer.dispose();
+        }
+    }
+
+    //Sends the image 
+    private static void sendImage() {
+
+        try {
+            //The image bytes
+            byte[] img = Files.readAllBytes(imageFile.toPath());
+
+            //Put it all together 
+            char[] data = new char[img.length + 29];
+            data[0] = App.IMAGE;
+
+            //Put the username 
+            for(int i = 0; i < App.userName.length(); i++)
+                data[i + 1] = App.userName.charAt(i);  
+            data[App.userName.length() + 1] = '\0';
+
+            //Put the num bytes
+            System.out.println("Num bytes is " + img.length);
+            ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+            buffer.putLong(0, img.length);
+            buffer.flip();
+            String arr = new String(buffer.array());
+
+            for(int i = 0; i < 8; i++)
+                data[i + 21] = arr.charAt(i);
+
+            //Put the bytes
+            for(int i = 0; i < img.length; i++) 
+                data[i + 29] = (char) img[i];
+
+            //Write it out
+            App.write(new String(data).toCharArray(), data.length);
+
+            System.out.println("Sending these bytes to server");
+            for(int i = 0; i < 100; i++) 
+                System.out.print((char) data[i]);
+        } catch(IOException e) {
+            e.printStackTrace();
         }
     }
 }

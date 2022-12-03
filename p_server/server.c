@@ -103,7 +103,7 @@ void start_server(int port) {
                     int n = read(i, buffer, MAX_MESSAGE_SIZE);
                     if (n > 0)  {
                         printf("Server received %d bytes: %s\n", n, buffer);
-                        process(buffer, i);
+                        process(buffer, i, n);
                     }
             }
         }
@@ -115,7 +115,7 @@ void start_server(int port) {
 
 }
 
-void process(char *data, int fd) {
+void process(char *data, int fd, int n) {
 
     int type = data[0];
 
@@ -140,16 +140,36 @@ void process(char *data, int fd) {
         write(fd, list, 801);
         printf("Sent movie list to %s\n", data);
 
+        //First send image
+        char z[1];
+        z[0] = 16;
+        write(fd, z, 1);
+
+        char name[20];
+        bzero(name, 20);
+        char *n = "Phila";
+        memcpy(name, n, 5);
+        write(fd, name, 20);
+        send_image(fd);
+
         //Send chats
         char b[1];
         b[0] = 15;
         write(fd, b, 1);
-        long len = 67;
+        long len = 70;
         len = htonll(len);
         write(fd, &len, sizeof(long));
 
         char *data = "Phila:hi everyone\0Sean:hey, how a u\0Nick:good! I love this movie:)\0";
-        write(fd, data, htonll(len));
+        char f[70];
+        memcpy(f, data, 67);
+        short s = 0; //The short can be mistaken for '\0' when splitting! Bad design :(
+        s = htons(s);
+        memcpy(f + 67, &s, 2);
+        f[69] = '\0';
+        write(fd, f, htonll(len));
+
+        //Then also send 
         printf("Sent all chats to them as well\n");
 
     } else if (type == 3) { //movie vote
@@ -237,11 +257,42 @@ void process(char *data, int fd) {
         len = htonll(len);
         write(fd, &len, sizeof(long));
         write(fd, message, htonll(len));
+    } else if (type == 16) {
+
+        printf("Got image from %s\n", data + 1);
+        printf("writing back %d bytes\n", n);
+
+        //Write back the entire image
+        write(fd, data, n);
+
     }
     else {
         printf("Server received unsupported message type\n");
     }
 }
+
+void send_image(int fd) {
+
+    //Send the minecraft video
+    FILE *f = fopen("img.jpg", "r");
+
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    char *video_contents = malloc(file_size);
+    fread(video_contents, 1, file_size, f);
+    fclose(f);
+
+    printf("image size was %ld\n", file_size);
+
+    long rev = htonll(file_size);
+    write(fd, &rev, sizeof(long));
+   
+    //Write the whole movie
+    write(fd, video_contents, file_size);
+}
+
 
 void send_video(int fd) {
 
