@@ -147,7 +147,15 @@ void run_server(int port) {
                             FD_CLR(i, &master_set);
                             // TODO: disconnect client
                         }
-                        read_entire_message(&buffer, i, message_type, &master_set);
+                        
+
+                        /* Read in the rest of the message */
+                        Image curr_image = NULL;
+                        if (message_type != IMAGE){
+                            read_entire_message(&buffer, i, message_type, &master_set);
+                        } else {
+                            curr_image = read_image(i);
+                        }
                         
                         /* TODO: put in function? */
 
@@ -163,7 +171,7 @@ void run_server(int port) {
                             char *message;
                             long chat_len;
 
-                            message = ":left"; //TODO: figure out if forward/backward
+                            message = ":LEFT"; //TODO: figure out if forward/backward
                             chat_len = htonll(client_name_len + strlen(message) + 1);
                             memcpy(chats.data, &chat_len, sizeof(chat_len));
                             memcpy(chats.data + sizeof(chat_len), controlling_client, client_name_len);
@@ -197,6 +205,8 @@ void run_server(int port) {
                             handle_media_controls(message_type, buffer, paused, clientIDs, i, &master_set, &fdmax, playing_start_time, log, &play_status);
                         } else if (message_type == CHAT){
                             send_chat(buffer, log, clientIDs, i, &master_set, &fdmax);
+                        } else if (message_type == IMAGE){
+                            send_image(curr_image, log, clientIDs, i, master_set, fdmax);
                         }
                     }
                 }
@@ -268,6 +278,14 @@ void send_chat(char *message_data, ChatLog log, List clientIDs, int port_no, fd_
     memcpy(chats.data + sizeof(chat_len) + name_len + 1, message_data + 21, r_chat_len);
     chats.data[sizeof(chat_len) + name_len + r_chat_len + 1] = '\0';
    
+    // bytes_read = read(port_no, *data + 1, 28);
+    // long bytes_to_read = 0;
+    // memcpy(&bytes_read, *data + 21, 8);
+    // bytes_to_read = htonll(bytes_to_read);
+    // bytes_read = read(port_no, *data + 29, bytes_to_read);
+
+
+
     // printf("Message to send\n");
     // for(int i = 0; i <= 8 + name_len + r_chat_len + 1; i++) {
     //     if(chats.data[i] == '\0') printf("0");
@@ -276,6 +294,18 @@ void send_chat(char *message_data, ChatLog log, List clientIDs, int port_no, fd_
 
     ChatLog_add(log, chats.data + sizeof(chat_len));
     send_to_all(*master_set, *fdmax, chats, 11 + name_len + r_chat_len);
+}
+
+void send_image(Image to_send, ChatLog log, List clientIDs, int port_no, fd_set master_set, int fdmax){
+    fd_set write_set = master_set;
+    select(fdmax + 1, NULL, &write_set, NULL, NULL);
+    for (int i = 0; i <= fdmax; i++) {
+        if (FD_ISSET(i, &write_set)){
+            int n = write(i, (char *) &to_send, to_send->size + 29);
+        }
+    }
+    
+    ChatLog_add_image(log, to_send);
 }
 
 void handle_media_controls(char message_type, char *message_data, bool paused, 
@@ -390,31 +420,8 @@ void handle_client_joining(int curr_phase, int port_no, List clientIDs,
         }
     }
 
-
-    // if (curr_phase == VOTING_PHASE){
-    //     fprintf(stderr, "In voting hello\n");
-    //     int n = write(port_no, (char *) &movie_list_message, 801);
-    // } else {
-    //     Message movie_content_message; 
-    //     movie_content_message.type = MOVIE_CONTENT;
-    //     long video_size_to_send =  htonll(video_size);
-    //     memcpy(movie_content_message.data, &video_size_to_send, sizeof(long));
-    //     write(port_no, (char *) &movie_content_message, 1 + sizeof(long));
-    //     write(port_no, video_contents, video_size);
-    //     if (curr_phase == PLAYING_PHASE){
-    //         Message start_message; 
-    //         start_message.type = START;
-    //         struct timespec curr_time;
-    //         timespec_get(&curr_time, TIME_UTC);
-
-    //         long time_since_video_start =  curr_time.tv_sec - video_start_time.tv_sec;
-    //         time_since_video_start = htonll(video_start_time.tv_sec);
-    //         memcpy(start_message.data, &time_since_video_start, sizeof(long));
-    //         write(port_no, (char *) &start_message, 1 + sizeof(long));
-    //     }
-    // }
-
     /* Send all prior chat messages */
+    write(port_no, log->images, log->images_size); /* First send images */
     struct Message chat_log_message; 
     chat_log_message.type = CHATS;
     long chat_log_size_to_send = htonll(log->size);
@@ -455,12 +462,22 @@ void read_entire_message(char **data, int port_no, char message_type, fd_set *ma
             bytes_read = read(port_no, *data + 1, 20);
             break;
     }
-    // if (bytes_read <= 0){
-    //     fprintf(stderr, "In read_entire close\n");
-    //     /* TODO: send error message */
-    //     close(port_no);
-    //     FD_CLR(port_no, master_set);
-    // }
+}
+
+Image read_image(int port_no){
+    Image new_image;
+    new_image->type = IMAGE;
+    
+    int bytes_read = read(port_no, new_image + 1, 28);
+    long bytes_to_read = 0;
+    memcpy(&bytes_to_read, new_image + 21, 8);
+    bytes_to_read = htonll(bytes_to_read);
+    new_image->size = bytes_to_read;
+
+    char *image_contents = malloc(bytes_to_read);
+    bytes_read = read(port_no, image_contents, bytes_to_read);
+    new_image->contents = image_contents;
+    return new_image;
 }
 
 void send_movie_to_all(fd_set *master_set, int *fdmax, List clientIDs, 
