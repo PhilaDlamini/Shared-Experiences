@@ -88,7 +88,7 @@ public class MoviePlayer {
         
         mediaPlayer.setOnReady(() -> {
             //Send Downloaded message
-            // App.write(new char[]{App.DOWNLOADED}, 1);
+            App.write(new char[]{App.DOWNLOADED}, 1);
             mediaView.setMediaPlayer(mediaPlayer);
         }); 
 
@@ -329,7 +329,7 @@ public class MoviePlayer {
                     imageSelected = true;
                     textInput.setPadding(new Insets(0, 64, 0, 8));
 
-                    System.out.println("File was chosen!");
+                    System.out.println("Image selected!");
                 }
 
             } else {
@@ -340,6 +340,7 @@ public class MoviePlayer {
                 pane.getChildren().add(plus);
                 textInput.setPadding(new Insets(0, 40, 0, 8));
                 imageSelected = false;
+                System.out.println("Image removed");
             }
         });
         row.getChildren().addAll(pane);
@@ -516,36 +517,34 @@ public class MoviePlayer {
         try {
             //The image bytes
             byte[] img = Files.readAllBytes(imageFile.toPath());
+            System.out.println("Actual image size " + Files.size(imageFile.toPath()));
 
             //Put it all together 
-            char[] data = new char[img.length + 29];
-            data[0] = App.IMAGE;
+            char[] a = new char[29];
+            a[0] = App.IMAGE;
 
-            //Put the username 
-            for(int i = 0; i < App.userName.length(); i++)
-                data[i + 1] = App.userName.charAt(i);  
-            data[App.userName.length() + 1] = '\0';
+            //Put in the name
+            for(int i = 0; i < App.userName.length(); i++) 
+                a[i + 1] = App.userName.charAt(i);
+            a[App.userName.length() + 1] = '\0';
 
-            //Put the num bytes
-            System.out.println("Num bytes is " + img.length);
+            //Put the long
             ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
-            buffer.putLong(0, img.length);
+            buffer.putLong(0, (long) img.length);
             buffer.flip();
-            String arr = new String(buffer.array());
+            byte[] f = buffer.array();
 
             for(int i = 0; i < 8; i++)
-                data[i + 21] = arr.charAt(i);
+                a[i + 21] = (char) f[i];
 
-            //Put the bytes
-            for(int i = 0; i < img.length; i++) 
-                data[i + 29] = (char) img[i];
+            // //Put the bytes
+            // for(int i = 0; i < img.length; i++) 
+            //     data[i + 29] = (char) img[i];
 
             //Write it out
-            App.write(new String(data).toCharArray(), data.length);
-
-            System.out.println("Sending these bytes to server");
-            for(int i = 0; i < 100; i++) 
-                System.out.print((char) data[i]);
+            System.out.println("data arr len is " + a.length);
+            App.write(a, 29);
+            
         } catch(IOException e) {
             e.printStackTrace();
         }

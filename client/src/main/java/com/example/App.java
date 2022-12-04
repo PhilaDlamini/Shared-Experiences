@@ -15,7 +15,6 @@ import java.util.LinkedList;
  */
 public class App extends Application {
     private static Control control;
-    public static volatile boolean running = true;
     private static Socket socket;
     private static PrintWriter out;
     private static InputStream in;
@@ -58,12 +57,6 @@ public class App extends Application {
             }
         }
         return buffer;
-    }
-
-    //Writes a long
-    public static void writeLong(long l) {
-        out.println(l);
-        out.flush();
     }
 
     //Reads in a long 
@@ -117,11 +110,6 @@ public class App extends Application {
         stage.setScene(Login.getScreen());
         stage.setResizable(false);
 		stage.show();
-
-        //Remove this
-        ByteBuffer b = ByteBuffer.allocate(Short.BYTES);
-        b.putShort(0, (short) 0);
-        chats.add(new String(b.array()));
     }
 
     //Updates the movie file 
@@ -144,9 +132,7 @@ public class App extends Application {
 
     //closes the app
     public static void close() {
-        try {
-            running = false;
-            
+        try {            
             control.t.interrupt();
             
             // control.interrupt();

@@ -141,36 +141,28 @@ void process(char *data, int fd, int n) {
         printf("Sent movie list to %s\n", data);
 
         //First send image
-        char z[1];
-        z[0] = 16;
-        write(fd, z, 1);
+        // char z[1];
+        // z[0] = 16;
+        // write(fd, z, 1);
 
-        char name[20];
-        bzero(name, 20);
-        char *n = "Phila";
-        memcpy(name, n, 5);
-        write(fd, name, 20);
-        send_image(fd);
+        // char name[20];
+        // bzero(name, 20);
+        // char *n = "Phila";
+        // memcpy(name, n, 5);
+        // write(fd, name, 20);
+        // send_image(fd);
 
         //Send chats
         char b[1];
         b[0] = 15;
         write(fd, b, 1);
-        long len = 70;
+        long len = 67;
         len = htonll(len);
         write(fd, &len, sizeof(long));
 
         char *data = "Phila:hi everyone\0Sean:hey, how a u\0Nick:good! I love this movie:)\0";
-        char f[70];
-        memcpy(f, data, 67);
-        short s = 0; //The short can be mistaken for '\0' when splitting! Bad design :(
-        s = htons(s);
-        memcpy(f + 67, &s, 2);
-        f[69] = '\0';
-        write(fd, f, htonll(len));
-
-        //Then also send 
-        printf("Sent all chats to them as well\n");
+        write(fd, data, 67);
+        printf("Sent all chats\n");
 
     } else if (type == 3) { //movie vote
 
@@ -202,7 +194,7 @@ void process(char *data, int fd, int n) {
         start = htonll(start);
         write(fd, &start, sizeof(long));
         
-    } else if (type == 8) {
+    } else if (type == 8) { //movie end
 
         printf("Got END movie from %d\n", fd);
 
@@ -218,7 +210,7 @@ void process(char *data, int fd, int n) {
         write(fd, list, 801);
         printf("Sent movie list to %d\n", fd);
 
-    } else if(type == 9) {
+    } else if(type == 9) {//goodbye
 
         printf("Got goodbye from %s\n", data);
 
@@ -228,12 +220,13 @@ void process(char *data, int fd, int n) {
         char a[1];
         a[0] = 11;
         write(fd, a, 1);
-    } else if(type == 12) {
+    } else if(type == 12) { //seek
 
         //TODO: why do we not need to do htonll here? 
         //Get long duration
         long duration; 
         memcpy(&duration, data + 1, sizeof (long)); 
+        duration = htonll(duration);
 
         printf("Got seek to %ld from %s\n", duration, data + 9);
         
@@ -243,7 +236,7 @@ void process(char *data, int fd, int n) {
         write(fd, b, 1);
         duration = htonll(duration);
         write(fd, &duration, sizeof(long));
-    } else if(type == 14) {
+    } else if(type == 14) {//chat
         printf("Got chat from %s\n", data + 1);
         printf("Message was: %s\n", data + 21);
         
@@ -260,10 +253,22 @@ void process(char *data, int fd, int n) {
     } else if (type == 16) {
 
         printf("Got image from %s\n", data + 1);
-        printf("writing back %d bytes\n", n);
+        // printf("Read %d bytes so far\n", n);
+
+        // //Read num of bytes 
+        long length; 
+        memcpy(&length, data + 21, sizeof(long)); 
+        length = htonll(length);
+        printf("Size of image is %ld bytes\n", length);
+
+        //Read the rest of the image
+        // char *contents = malloc(length);
+        // memcpy(contents, data + 29, n - 29);
+        // int r = read(fd, contents + (n - 29), length - n - 29);
+        // printf("read %d more image bytes out of %ld\n", r, length - n - 29);
 
         //Write back the entire image
-        write(fd, data, n);
+        // write(fd, data, n);
 
     }
     else {
