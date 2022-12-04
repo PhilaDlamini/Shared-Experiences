@@ -155,6 +155,7 @@ void run_server(int port) {
                             read_entire_message(&buffer, i, message_type, &master_set);
                         } else {
                             curr_image = read_image(i);
+                            fprintf(stderr, "Returned from read_image\n");
                         }
                         
                         /* TODO: put in function? */
@@ -206,6 +207,7 @@ void run_server(int port) {
                         } else if (message_type == CHAT){
                             send_chat(buffer, log, clientIDs, i, &master_set, &fdmax);
                         } else if (message_type == IMAGE){
+                            fprintf(stderr, "Before send_image\n");
                             send_image(curr_image, log, clientIDs, i, master_set, fdmax);
                         }
                     }
@@ -297,14 +299,15 @@ void send_chat(char *message_data, ChatLog log, List clientIDs, int port_no, fd_
 }
 
 void send_image(Image to_send, ChatLog log, List clientIDs, int port_no, fd_set master_set, int fdmax){
+    fprintf(stderr, "In send image\n");
     fd_set write_set = master_set;
     select(fdmax + 1, NULL, &write_set, NULL, NULL);
     for (int i = 0; i <= fdmax; i++) {
         if (FD_ISSET(i, &write_set)){
-            int n = write(i, (char *) &to_send, to_send->size + 29);
+            int n = write(i, (char *) to_send, to_send->size + 29);
         }
     }
-    
+    fprintf(stderr, "Sent image, about to enter chatlog\n");
     ChatLog_add_image(log, to_send);
 }
 
@@ -463,18 +466,34 @@ void read_entire_message(char **data, int port_no, char message_type, fd_set *ma
 }
 
 Image read_image(int port_no){
-    Image new_image;
+    fprintf(stderr, "In read Image\n");
+    Image new_image = malloc(sizeof(struct Image));
     new_image->type = IMAGE;
-    
-    int bytes_read = read(port_no, new_image + 1, 28);
-    long bytes_to_read = 0;
-    memcpy(&bytes_to_read, new_image + 21, 8);
-    bytes_to_read = htonll(bytes_to_read);
-    new_image->size = bytes_to_read;
 
-    char *image_contents = malloc(bytes_to_read);
+    char a[28];
+    
+    // int bytes_read = read(port_no, new_image + 1, 28);
+    int bytes_read = read(port_no, a, 28);
+
+    fprintf(stderr, "Bytes read: %d\n", bytes_read);
+
+    fprintf(stderr, "Name is: %s\n", a);
+
+
+    long bytes_to_read;
+    memcpy(new_image->client_name, a, 20);
+    memcpy(&bytes_to_read, a + 20, sizeof(long));
+    printf("size %ld\n", htonll(bytes_to_read));
+    new_image->size = htonll(bytes_to_read);
+    
+
+    printf("new image name: %s\n", new_image->client_name);
+    printf("new image size: %ld\n", new_image->size);
+
+    char *image_contents = malloc(new_image->size);
     bytes_read = read(port_no, image_contents, bytes_to_read);
     new_image->contents = image_contents;
+    fprintf(stderr, "Image size: %ld\n", new_image->size);
     return new_image;
 }
 

@@ -88,7 +88,7 @@ public class MoviePlayer {
         
         mediaPlayer.setOnReady(() -> {
             //Send Downloaded message
-            // App.write(new char[]{App.DOWNLOADED}, 1);
+            App.write(new char[]{App.DOWNLOADED}, 1);
             mediaView.setMediaPlayer(mediaPlayer);
         }); 
 
@@ -279,7 +279,7 @@ public class MoviePlayer {
         final FileChooser chooser = new FileChooser();
 
         chooser.getExtensionFilters().addAll(
-            new ExtensionFilter("Image Files", "*.png", "*.jpg", "*.heif"));
+            new ExtensionFilter("Image Files", "*.png", "*.jpg", "*.heif", "*.jpeg"));
         chooser.setTitle("Select Image");
 
 
@@ -438,7 +438,7 @@ public class MoviePlayer {
     public static void updateChats() {
         if(scroll == null) 
             return;
-
+        System.out.println("chats length " + App.chats.size());
         Platform.runLater(() -> {
         scroll.getChildren().removeAll(scroll.getChildren());
         scroll.getChildren().addAll(
@@ -528,8 +528,9 @@ public class MoviePlayer {
 
             //Put the num bytes
             System.out.println("Num bytes is " + img.length);
+            long s = img.length;
             ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
-            buffer.putLong(0, img.length);
+            buffer.putLong(0, s);
             buffer.flip();
             String arr = new String(buffer.array());
 
@@ -540,12 +541,14 @@ public class MoviePlayer {
             for(int i = 0; i < img.length; i++) 
                 data[i + 29] = (char) img[i];
 
-            //Write it out
-            App.write(new String(data).toCharArray(), data.length);
-
             System.out.println("Sending these bytes to server");
             for(int i = 0; i < 100; i++) 
-                System.out.print((char) data[i]);
+                System.out.print(data[i]);
+                // System.exit(1);
+
+            //Write it out
+            App.write(data, data.length);
+            System.exit(0);
         } catch(IOException e) {
             e.printStackTrace();
         }

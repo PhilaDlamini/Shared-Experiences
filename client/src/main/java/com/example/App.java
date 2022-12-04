@@ -117,11 +117,6 @@ public class App extends Application {
         stage.setScene(Login.getScreen());
         stage.setResizable(false);
 		stage.show();
-
-        //Remove this
-        ByteBuffer b = ByteBuffer.allocate(Short.BYTES);
-        b.putShort(0, (short) 0);
-        chats.add(new String(b.array()));
     }
 
     //Updates the movie file 
