@@ -1,5 +1,6 @@
 package com.example;
 
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -8,6 +9,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -512,43 +514,38 @@ public class MoviePlayer {
 
     //Sends the image 
     private static void sendImage() {
-
         try {
             //The image bytes
-            byte[] img = Files.readAllBytes(imageFile.toPath());
+            byte[] img = Files.readAllBytes(imageFile.toPath());     
+            String size = "" + img.length;  
+            System.out.println("image size was: " + size);
 
-            //Put it all together 
-            char[] data = new char[img.length + 29];
-            data[0] = App.IMAGE;
+            //Create the arr to write 
+            char[] arr = new char[img.length + size.length() + 22];
 
-            //Put the username 
+            //Write the type
+            arr[0] = App.IMAGE;
+
+            //Write the length
+            for(int i = 0; i < size.length(); i++)
+                arr[i + 1] = size.charAt(i);
+            arr[size.length() + 1] = ':';
+
+            //Write name
             for(int i = 0; i < App.userName.length(); i++)
-                data[i + 1] = App.userName.charAt(i);  
-            data[App.userName.length() + 1] = '\0';
+                arr[i + size.length() + 2] = App.userName.charAt(i);
 
-            //Put the num bytes
-            System.out.println("Num bytes is " + img.length);
-            long s = img.length;
-            ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
-            buffer.putLong(0, s);
-            buffer.flip();
-            String arr = new String(buffer.array());
+            //Write image bytes 
+            for(int i = 0; i < img.length; i++)
+                arr[i + size.length() + 22] = (char) img[i];
 
-            for(int i = 0; i < 8; i++)
-                data[i + 21] = arr.charAt(i);
-
-            //Put the bytes
-            for(int i = 0; i < img.length; i++) 
-                data[i + 29] = (char) img[i];
-
-            System.out.println("Sending these bytes to server");
-            for(int i = 0; i < 100; i++) 
-                System.out.print(data[i]);
-                // System.exit(1);
-
-            //Write it out
-            App.write(data, data.length);
-            System.exit(0);
+            for(int i = 0; i < 100; i++)
+                System.out.print(arr[i]);
+            App.write(arr, img.length + size.length() + 22);
+            imageSelected = false;
+            System.out.println("Client sent " + (img.length + size.length() + 22) + "bytes");  
+            //System.exit(1);
+            // App.writeImage(img);
         } catch(IOException e) {
             e.printStackTrace();
         }

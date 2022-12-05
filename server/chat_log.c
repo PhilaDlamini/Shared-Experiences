@@ -42,7 +42,7 @@ void ChatLog_add_image(ChatLog log, Image to_add){
     fprintf(stderr, "To add size: %ld\n", to_add_size);
     fprintf(stderr, "ADD IMAGE 1\n");
     /* Convert image size back to network order to prepare for sending */
-    to_add->size = htonll(to_add_size);
+    //to_add->size = htonll(to_add_size);
 
     if (log->images_size + to_add_size >= log->images_capacity){
         log->capacity = (log->images_capacity * 2) + to_add_size;

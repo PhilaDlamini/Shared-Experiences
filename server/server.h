@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <time.h>
+#include <errno.h>
 
 #include <unistd.h>
 #include <netdb.h>

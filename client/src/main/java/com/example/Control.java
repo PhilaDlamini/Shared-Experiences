@@ -50,8 +50,11 @@ public class Control implements Runnable {
                     break;
                 
                 case App.IMAGE:
+                    System.out.println("Got image!");
                     String sender = new String(App.read(20));
-                    byte[] data = App.read((int) App.readLong()); //Again, this will be a problem
+                    long size = App.readLong();
+                    System.out.println("Image was " + size + " bytes");
+                    byte[] data = App.read((int) size); //Again, this will be a problem
                     
                     //Create the file
                     File imgFile = null;

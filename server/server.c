@@ -301,14 +301,16 @@ void send_chat(char *message_data, ChatLog log, List clientIDs, int port_no, fd_
 void send_image(Image to_send, ChatLog log, List clientIDs, int port_no, fd_set master_set, int fdmax){
     fprintf(stderr, "In send image\n");
     fd_set write_set = master_set;
+    ChatLog_add_image(log, to_send);
+
     select(fdmax + 1, NULL, &write_set, NULL, NULL);
     for (int i = 0; i <= fdmax; i++) {
         if (FD_ISSET(i, &write_set)){
             int n = write(i, (char *) to_send, to_send->size + 29);
         }
     }
-    fprintf(stderr, "Sent image, about to enter chatlog\n");
-    ChatLog_add_image(log, to_send);
+    fprintf(stderr, "Sent image\n");
+    sleep(20);
 }
 
 void handle_media_controls(char message_type, char *message_data, bool paused, 
@@ -471,29 +473,77 @@ Image read_image(int port_no){
     new_image->type = IMAGE;
 
     char a[28];
+    bzero(a, 28);
     
+
+    char long_text[20];
+
+
     // int bytes_read = read(port_no, new_image + 1, 28);
-    int bytes_read = read(port_no, a, 28);
+    
+    char curr = '\0';
+    long bytes_read = 0;
+    while (curr != ':'){
+        int byte_read = read(port_no, &curr, 1);
+        fprintf(stderr, "In while loop: %c\n", curr);
+        if (byte_read < 1){
+            break;
+        }
+        long_text[bytes_read] = curr;
+        bytes_read += byte_read;
+    }
+    
+    long_text[bytes_read] = '\0';
+    long bytes_to_read = strtol(long_text, NULL, 10);
+    new_image->size = bytes_to_read;
+    
+    
+    
+    // //int bytes_read = read(port_no, a, 28);
 
-    fprintf(stderr, "Bytes read: %d\n", bytes_read);
+    // for (int i = 0; i < 28; i++){
+    //     fprintf(stderr, "|%c| ", a[i]);
 
-    fprintf(stderr, "Name is: %s\n", a);
+    
+
+    // fprintf(stderr, "Bytes read: %d\n", bytes_read);
+
+    // fprintf(stderr, "Name is: %s\n", a + 8);
 
 
-    long bytes_to_read;
-    memcpy(new_image->client_name, a, 20);
-    memcpy(&bytes_to_read, a + 20, sizeof(long));
-    printf("size %ld\n", htonll(bytes_to_read));
-    new_image->size = htonll(bytes_to_read);
+    // long bytes_to_read;
+    
+    read(port_no, new_image->client_name, 20);
+
+    // memcpy(new_image->client_name, a + bytes_read + 1, 20);
+    
+    
+    
+    // memcpy(&bytes_to_read, a, sizeof(long));
+    //printf("size %ld\n", htonll(bytes_to_read));
+    // printf("size %ld\n", htonll(bytes_to_read));
+    // new_image->size = htonll(bytes_to_read);
+    // printf("size %ld\n", bytes_to_read);
+    // new_image->size = bytes_to_read;
     
 
     printf("new image name: %s\n", new_image->client_name);
     printf("new image size: %ld\n", new_image->size);
-
     char *image_contents = malloc(new_image->size);
-    bytes_read = read(port_no, image_contents, bytes_to_read);
+    bytes_read = 0;
+    while (bytes_read < new_image->size){
+        fprintf(stderr, "In read movie while loop");
+        bytes_read += read(port_no, image_contents + bytes_read, 1);
+    }
+    // bytes_read = read(port_no, image_contents, (int) bytes_to_read);
+
+
+
+    if (bytes_read == -1) printf("ERROR reading: %s\n", strerror(errno));
+    fprintf(stderr, "Image bytes read: %d\n", bytes_read);
     new_image->contents = image_contents;
     fprintf(stderr, "Image size: %ld\n", new_image->size);
+    //exit(1);
     return new_image;
 }
 

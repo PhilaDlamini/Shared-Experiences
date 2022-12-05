@@ -61,10 +61,26 @@ public class App extends Application {
     }
 
     //Writes a long
-    public static void writeLong(long l) {
-        out.println(l);
-        out.flush();
-    }
+    // public static void writeLong(long l) {
+    //     try {
+    //         DataOutputStream dataOut = new DataOutputStream(socket.getOutputStream());
+    //         dataOut.writeLong(l);
+    //         dataOut.flush();
+    //     }catch (Exception e) {
+    //         System.out.println("Err writing long: " + e.getMessage());
+    //     }
+    // }
+
+    // //temp write image 
+    // public static void writeImage(byte[] img) {
+    //     try {
+    //         DataOutputStream dataOut = new DataOutputStream(socket.getOutputStream());
+    //         dataOut.write(img);
+    //         dataOut.flush();
+    //     }catch (Exception e) {
+    //         System.out.println("Err writing image: " + e.getMessage());
+    //     }
+    // }
 
     //Reads in a long 
     public static long readLong() { 
