@@ -25,7 +25,7 @@ public class App extends Application {
     public static int PORT;
  
     //The message types 
-    public static final int HELLO = 1, MOVIES = 2, VOTE = 3, MOVIE_SELECTED  = 4,
+    public static final int BACK = 0, FORWARD = 1, HELLO = 1, MOVIES = 2, VOTE = 3, MOVIE_SELECTED  = 4,
     MOVIE_CONTENT = 5, DOWNLOADED = 6, START = 7, END_MOVIE = 8, GOODBYE = 9, 
     TOGGLE = 10, TOGGLE_MOVIE = 11, SEEK = 12, SEEK_MOVIE = 13, CHAT = 14,
     CHATS = 15, IMAGE = 16;

@@ -117,14 +117,14 @@ public class MoviePlayer {
         Button seekBack = new Button("<");
         seekBack.setOnAction(e -> {
             long seconds = (long) mediaPlayer.getCurrentTime().toSeconds() - 10;
-            sendSeek(App.userName, Math.max(0, seconds));
+            sendSeek(App.userName, Math.max(0, seconds), App.BACK);
         });
 
         Button seekForward = new Button(">");
         seekForward.setOnAction(e -> {
             long seconds = (long) mediaPlayer.getCurrentTime().toSeconds() + 10;
             System.out.println("sent seek for: " + seconds);
-            sendSeek(App.userName, seconds);
+            sendSeek(App.userName, seconds, App.FORWARD);
             
         });
 
@@ -413,10 +413,10 @@ public class MoviePlayer {
     }
 
     //Sends the toggle message to server 
-    private static void sendSeek(String userName, long s) {
+    private static void sendSeek(String userName, long s, int dir) {
 
         //The data to write
-        char[] data = new char[29];
+        char[] data = new char[30];
         data[0] = App.SEEK;
 
         //Put the long
@@ -434,7 +434,8 @@ public class MoviePlayer {
         }
 
         data[userName.length() + 9] = '\0';
-        App.write(data, 29);
+        data[29] = (char) dir;
+        App.write(data, 30);
     }
 
     public static void updateChats() {

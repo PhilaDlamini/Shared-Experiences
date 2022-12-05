@@ -1,6 +1,7 @@
 #include "server.h"
 #include "list.h"
 
+int skip_counter = 0;
 
 
 int main (int argc, char *argv[]){
@@ -310,7 +311,6 @@ void send_image(Image to_send, ChatLog log, List clientIDs, int port_no, fd_set 
         }
     }
     fprintf(stderr, "Sent image\n");
-    sleep(20);
 }
 
 void handle_media_controls(char message_type, char *message_data, bool paused, 
@@ -328,6 +328,7 @@ void handle_media_controls(char message_type, char *message_data, bool paused,
 
     //For sending chats
     struct Message chats;
+    chats.type = CHATS;
     char *message;
     long chat_len;
 
@@ -356,14 +357,26 @@ void handle_media_controls(char message_type, char *message_data, bool paused,
         /* TODO: send backward or forward */
 
         long seconds;
+        char direction;
         memcpy(&seconds, message_data + 1, sizeof(seconds));
+        memcpy(&direction, message_data + 29, sizeof(direction));
+
+        if (direction == BACKWARD){
+            fprintf(stderr, "SEEKED BACKWARD\n");
+            skip_counter++;
+        } else if (direction == FORWARD) {
+            fprintf(stderr, "SEEKED FOREWARD\n");
+            skip_counter--;
+        }
+
         media_control_message.type = SEEK_MOVIE;
         memcpy(media_control_message.data, &seconds, sizeof(seconds));
         send_to_all(*master_set, *fdmax, media_control_message, 9);
-
+        
         //Build struct (perhaps this could be a function?)
         message = ":SEEKED MOVIE"; //TODO: figure out if forward/backward
         chat_len = htonll(client_name_len + strlen(message) + 1);
+
         memcpy(chats.data, &chat_len, sizeof(chat_len));
         memcpy(chats.data + sizeof(chat_len), controlling_client, client_name_len);
         memcpy(chats.data + sizeof(chat_len) + client_name_len, message, strlen(message));
@@ -415,7 +428,8 @@ void handle_client_joining(int curr_phase, int port_no, List clientIDs,
                 struct timespec curr_time;
                 timespec_get(&curr_time, TIME_UTC);
 
-                long time_since_video_start =  curr_time.tv_sec - video_start_time.tv_sec;
+                long time_since_video_start =  curr_time.tv_sec - video_start_time.tv_sec + (10 * skip_counter);
+                fprintf(stderr, "time since video started: %ld\n", time_since_video_start);
                 time_since_video_start = htonll(time_since_video_start);
                 memcpy(start_message.data, &time_since_video_start, sizeof(long));
                 write(port_no, (char *) &start_message, 1 + sizeof(long));
@@ -456,7 +470,7 @@ void read_entire_message(char **data, int port_no, char message_type, fd_set *ma
         case END_MOVIE:;
             break;
         case SEEK:;
-            bytes_read = read(port_no, *data + 1, 8);
+            bytes_read = read(port_no, *data + 1, 29);
             break;
         case CHAT:; //being handled?
             bytes_read = read(port_no, *data + 1, 420);

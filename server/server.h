@@ -59,6 +59,10 @@ typedef struct Message Message;
 #define CHATS 15
 #define IMAGE 16
 
+#define BACKWARD 0
+#define FORWARD 1
+
+
 
 /* TODO: ERROR */
 
