@@ -279,7 +279,7 @@ public class MoviePlayer {
         final FileChooser chooser = new FileChooser();
 
         chooser.getExtensionFilters().addAll(
-            new ExtensionFilter("Image Files", "*.png", "*.jpg", "*.heif"));
+            new ExtensionFilter("Image Files", "*.png", "*.jpg", "*.heif", "*.jpeg"));
         chooser.setTitle("Select Image");
 
 
@@ -439,7 +439,7 @@ public class MoviePlayer {
     public static void updateChats() {
         if(scroll == null) 
             return;
-
+        System.out.println("chats length " + App.chats.size());
         Platform.runLater(() -> {
         scroll.getChildren().removeAll(scroll.getChildren());
         scroll.getChildren().addAll(
