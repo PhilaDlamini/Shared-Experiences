@@ -22,14 +22,14 @@ typedef struct ChatLog {
 
 typedef struct __attribute__((__packed__)) Image {
     char type;
-    char client_name [20];
-    long size;
+    char size[21];
+    char client_name[20];
     char *contents;
 } *Image;
 
 ChatLog ChatLog_new();
 
 void ChatLog_add(ChatLog log, char *to_add);
-void ChatLog_add_image(ChatLog log, Image to_add);
+void ChatLog_add_image(ChatLog log, char *image, long bytes_to_add);
 
 void ChatLog_free(ChatLog log);

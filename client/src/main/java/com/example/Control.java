@@ -1,5 +1,7 @@
 package com.example;
 import java.io.*;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /*
@@ -50,13 +52,29 @@ public class Control implements Runnable {
                     break;
                 
                 case App.IMAGE:
+                    System.out.println("Got image!");
+
+                    //Read num of bytes
+                    String num = "";
+                    byte c;
+                    while((c = App.read(1)[0]) != ':') {
+                        num += (char) c;
+                    }
+                    long size = Long.parseLong(num);
+                    System.out.print("size str was " );
+                    System.out.println("Img is " + size + " bytes");
+
                     String sender = new String(App.read(20));
-                    byte[] data = App.read((int) App.readLong()); //Again, this will be a problem
+                    System.out.println("Sender was " + sender);
+
+                    byte[] data = App.read((int) size); //Again, this will be a problem
+                    System.out.print("img bytes size is " + data.length);
+                    System.out.println("First 100 bytes of image");
                     
                     //Create the file
                     File imgFile = null;
                     try {
-                        imgFile = File.createTempFile("IMAGE", "");
+                        imgFile = File.createTempFile("IMAGE", ".jpg");
                         imgFile.deleteOnExit();
                         OutputStream o = new FileOutputStream(imgFile);
                         o.write(data);
@@ -65,8 +83,8 @@ public class Control implements Runnable {
                         System.out.println("Encountered err saving image " + e.getMessage());
                     }
 
+                    System.out.println("Finished reading img  bytes");
                     App.images.add(new ImageInfo(sender, imgFile));
-                    System.out.println("Got image! Sender was " + sender);
                     break;
 
                 case App.MOVIE_CONTENT:

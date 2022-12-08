@@ -1,15 +1,10 @@
 package com.example;
-
+import java.io.DataOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOError;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 import javafx.application.Platform;
@@ -27,8 +22,6 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
-import javafx.scene.layout.Border;
-import javafx.scene.layout.BorderStroke;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -48,10 +41,14 @@ import javafx.scene.media.MediaPlayer.Status;
 
 public class MoviePlayer {
     private static VBox scroll;
+    private static HBox row = new HBox();
     private static MediaView mediaView = new MediaView();
+    private static StackPane imagePane;
+    private static ImageView pickedImage = new ImageView();
     private static ScrollPane pane;
     private static MediaPlayer mediaPlayer;
     private static TextField textInput;
+    private static Text cross = new Text(), plus = new Text();
     private static boolean imageSelected = false;
     private static File imageFile;
 
@@ -73,17 +70,6 @@ public class MoviePlayer {
         mediaPlayer = new MediaPlayer(media); 
         mediaPlayer.setOnError(() -> {
             System.out.println("media error "+ mediaPlayer.getError().toString());
-
-            //Try this?? seeking too soon??
-            // mediaPlayer = new MediaPlayer(media);
-            // mediaPlayer.setOnPlaying(() ->{
-            //     mediaPlayer.seek(Duration.seconds(App.startDuration)); //seeking too soon?        
-            //     mediaPlayer.setOnPlaying(null);
-            // });
-            // mediaView.setMediaPlayer(mediaPlayer);
-            // mediaPlayer.play();
-            
-
         });
         
         mediaPlayer.setOnReady(() -> {
@@ -115,14 +101,14 @@ public class MoviePlayer {
         Button seekBack = new Button("<");
         seekBack.setOnAction(e -> {
             long seconds = (long) mediaPlayer.getCurrentTime().toSeconds() - 10;
-            sendSeek(App.userName, Math.max(0, seconds));
+            sendSeek(App.userName, Math.max(0, seconds), App.BACK);
         });
 
         Button seekForward = new Button(">");
         seekForward.setOnAction(e -> {
             long seconds = (long) mediaPlayer.getCurrentTime().toSeconds() + 10;
             System.out.println("sent seek for: " + seconds);
-            sendSeek(App.userName, seconds);
+            sendSeek(App.userName, seconds, App.FORWARD);
             
         });
 
@@ -285,33 +271,31 @@ public class MoviePlayer {
 
         //The circle
         Circle circle = new Circle(10, Color.web("#78909C"));
-        Text plus = new Text("+");
+        plus = new Text("+");
         plus.setFont(Font.font("Verdana", FontWeight.BOLD,null, 16));
         plus.setFill(Color.WHITE);
-        Text cross = new Text("x");
+        cross = new Text("x");
         cross.setFont(Font.font("Verdana", FontWeight.BOLD,null, 13));
         cross.setFill(Color.WHITE);
 
         // The pane of all things
-        HBox row = new HBox();
         row.setSpacing(8);
         row.setAlignment(Pos.CENTER);
         row.setPadding(new Insets(0, 8, 0, 0));
         row.setMaxWidth(42);
 
         //Holds the image
-        ImageView image = new ImageView();
-        image.setFitHeight(24);
-        image.setFitWidth(24);
-        image.setOnMouseClicked(e -> {
+        pickedImage.setFitHeight(24);
+        pickedImage.setFitWidth(24);
+        pickedImage.setOnMouseClicked(e -> {
             //TODO: expand image for view to see 
         });
 
-        StackPane pane = new StackPane(circle, plus);
-        pane.setAlignment(Pos.CENTER);
-        pane.setMaxWidth(circle.getRadius());
-        pane.setMaxHeight(circle.getRadius());
-        pane.setOnMouseClicked(e -> {
+        imagePane = new StackPane(circle, plus);
+        imagePane.setAlignment(Pos.CENTER);
+        imagePane.setMaxWidth(circle.getRadius());
+        imagePane.setMaxHeight(circle.getRadius());
+        imagePane.setOnMouseClicked(e -> {
             System.out.println("Moused pressed!");
 
             if(!imageSelected) {
@@ -320,12 +304,12 @@ public class MoviePlayer {
                 if(imageFile != null) {
 
                     //Displaly it
-                    image.setImage(new Image(imageFile.toURI().toString()));
-                    row.getChildren().add(0, image);
+                    pickedImage.setImage(new Image(imageFile.toURI().toString()));
+                    row.getChildren().add(0, pickedImage);
 
                     //Change to cross
-                    pane.getChildren().remove(plus);
-                    pane.getChildren().add(cross);
+                    imagePane.getChildren().remove(plus);
+                    imagePane.getChildren().add(cross);
                     imageSelected = true;
                     textInput.setPadding(new Insets(0, 64, 0, 8));
 
@@ -334,20 +318,23 @@ public class MoviePlayer {
 
             } else {
 
-                //remove the image and switch to the plus
-                row.getChildren().remove(image);
-                pane.getChildren().remove(cross);
-                pane.getChildren().add(plus);
-                textInput.setPadding(new Insets(0, 40, 0, 8));
-                imageSelected = false;
+                removeImage();
                 System.out.println("Image removed");
             }
         });
-        row.getChildren().addAll(pane);
-
+        row.getChildren().addAll(imagePane);
 
         return row;
     } 
+
+    //removes picked image
+    private static void removeImage() {
+        row.getChildren().remove(pickedImage);
+        imagePane.getChildren().remove(cross);
+        imagePane.getChildren().add(plus);
+        textInput.setPadding(new Insets(0, 40, 0, 8));
+        imageSelected = false;
+    }
 
     //Returns all the messages 
     private static ScrollPane messages() {
@@ -412,10 +399,10 @@ public class MoviePlayer {
     }
 
     //Sends the toggle message to server 
-    private static void sendSeek(String userName, long s) {
+    private static void sendSeek(String userName, long s, int dir) {
 
         //The data to write
-        char[] data = new char[29];
+        char[] data = new char[30];
         data[0] = App.SEEK;
 
         //Put the long
@@ -433,10 +420,13 @@ public class MoviePlayer {
         }
 
         data[userName.length() + 9] = '\0';
-        App.write(data, 29);
+        data[29] = (char) dir;
+        App.write(data, 30);
     }
 
     public static void updateChats() {
+        App.imageIndex = 0;//reset
+
         if(scroll == null) 
             return;
         System.out.println("chats length " + App.chats.size());
@@ -472,8 +462,10 @@ public class MoviePlayer {
                 } else {
 
                     //This is an image
+                    System.out.println("Rendering image!");
                     ImageInfo info = App.images.get(App.imageIndex++);
                     ImageView img = new ImageView(info.getURL());
+                    System.out.println("image path " + info.getURL());
                     img.setPreserveRatio(true);
                     img.setFitHeight(250);
                     img.setFitWidth(250);
@@ -513,39 +505,63 @@ public class MoviePlayer {
 
     //Sends the image 
     private static void sendImage() {
-
         try {
             //The image bytes
-            byte[] img = Files.readAllBytes(imageFile.toPath());
-            System.out.println("Actual image size " + Files.size(imageFile.toPath()));
-
-            //Put it all together 
-            char[] a = new char[29];
-            a[0] = App.IMAGE;
-
-            //Put in the name
-            for(int i = 0; i < App.userName.length(); i++) 
-                a[i + 1] = App.userName.charAt(i);
-            a[App.userName.length() + 1] = '\0';
-
-            //Put the long
-            ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
-            buffer.putLong(0, (long) img.length);
-            buffer.flip();
-            byte[] f = buffer.array();
-
-            for(int i = 0; i < 8; i++)
-                a[i + 21] = (char) f[i];
-
-            // //Put the bytes
-            // for(int i = 0; i < img.length; i++) 
-            //     data[i + 29] = (char) img[i];
-
-            //Write it out
-            System.out.println("data arr len is " + a.length);
-            App.write(a, 29);
+            byte[] img = Files.readAllBytes(imageFile.toPath()); 
             
-        } catch(IOException e) {
+            //Write out the original bytes
+
+            Path path = Paths.get("original.jpg");
+            Files.write(path, img);
+
+
+            System.out.println("first 100 bytes of img");
+            for(int i = 0; i < 100; i++) {
+                System.out.print((char) img[i]);
+            }   
+            String size = "" + img.length;  
+            System.out.println("image size was: " + size);
+
+            //Create the arr to write 
+            char[] arr = new char[img.length + size.length() + 22];
+
+            //Write the type
+            arr[0] = App.IMAGE;
+
+            //Write the length
+            for(int i = 0; i < size.length(); i++)
+                arr[i + 1] = size.charAt(i);
+            arr[size.length() + 1] = ':';
+
+            //Write name
+            for(int i = 0; i < App.userName.length(); i++)
+                arr[i + size.length() + 2] = App.userName.charAt(i);
+
+            //Write image bytes 
+            byte[] copy = new byte[img.length];
+            for(int i = 0; i < img.length; i++) {
+                arr[i + size.length() + 22] = (char) img[i];
+                copy[i] = (byte) arr[i + size.length() + 22];
+            }
+            Path path2 = Paths.get("sent.jpg");
+            Files.write(path2, copy);
+
+            for(int i = 0; i < 100; i++)
+                System.out.print(arr[i]);
+            App.write(arr, size.length() + 22);
+
+            DataOutputStream dataOut = new DataOutputStream(App.socket.getOutputStream());
+            dataOut.write(img);
+            dataOut.flush();
+
+            imageSelected = false;
+            System.out.println("Client sent " + (img.length + size.length() + 22) + "bytes");  
+            //System.exit(1);
+            // App.writeImage(img);
+
+            //Then remove the current image
+            removeImage();
+        } catch(Exception e) {
             e.printStackTrace();
         }
     }

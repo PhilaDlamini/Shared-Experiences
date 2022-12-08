@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <time.h>
+#include <errno.h>
 
 #include <unistd.h>
 #include <netdb.h>
@@ -58,6 +59,10 @@ typedef struct Message Message;
 #define CHATS 15
 #define IMAGE 16
 
+#define BACKWARD 0
+#define FORWARD 1
+
+
 
 /* TODO: ERROR */
 
@@ -79,7 +84,7 @@ void handle_media_controls(char message_type, char *message_data, bool paused,
                            int *play_status);
 
 void read_entire_message(char **data, int port_no, char message_type, fd_set *master_set);
-Image read_image(int port_no);
+void handle_image(int port_no, ChatLog log);
 
 void send_movie_to_all(fd_set *master_set, int *fdmax, List clientIDs, 
                        video_list vds, int video_index, char **video_contents, 
@@ -93,6 +98,6 @@ char *load_video (char *video_name, long *video_size);
 void send_to_all(fd_set master_set, int fdmax, Message to_send, int message_size);
 
 void send_chat(char *message_data, ChatLog log, List clientIDs, int port_no, fd_set *master_set, int *fdmax);
-void send_image(Image to_send, ChatLog log, List clientIDs, int port_no, fd_set master_set, int fdmax);
+// void send_image(char *to_send, int size, ChatLog log, List clientIDs, int port_no, fd_set master_set, int fdmax);
 
 int max(int a, int b);

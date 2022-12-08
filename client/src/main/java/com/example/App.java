@@ -15,7 +15,7 @@ import java.util.LinkedList;
  */
 public class App extends Application {
     private static Control control;
-    private static Socket socket;
+    public static Socket socket;
     private static PrintWriter out;
     private static InputStream in;
     private static Stage stage;
@@ -24,13 +24,13 @@ public class App extends Application {
     public static int PORT;
  
     //The message types 
-    public static final int HELLO = 1, MOVIES = 2, VOTE = 3, MOVIE_SELECTED  = 4,
+    public static final int BACK = 0, FORWARD = 1, HELLO = 1, MOVIES = 2, VOTE = 3, MOVIE_SELECTED  = 4,
     MOVIE_CONTENT = 5, DOWNLOADED = 6, START = 7, END_MOVIE = 8, GOODBYE = 9, 
     TOGGLE = 10, TOGGLE_MOVIE = 11, SEEK = 12, SEEK_MOVIE = 13, CHAT = 14,
     CHATS = 15, IMAGE = 16;
 
     //The user information 
-    public static int imageIndex = 0;
+    public static int imageIndex;
     public static String userName;
     public static String movieName = "unknown.mp4";
     public static LinkedList<String> movies = new LinkedList<>();
@@ -58,6 +58,28 @@ public class App extends Application {
         }
         return buffer;
     }
+
+    //Writes a long
+    // public static void writeLong(long l) {
+    //     try {
+    //         DataOutputStream dataOut = new DataOutputStream(socket.getOutputStream());
+    //         dataOut.writeLong(l);
+    //         dataOut.flush();
+    //     }catch (Exception e) {
+    //         System.out.println("Err writing long: " + e.getMessage());
+    //     }
+    // }
+
+    // //temp write image 
+    // public static void writeImage(byte[] img) {
+    //     try {
+    //         DataOutputStream dataOut = new DataOutputStream(socket.getOutputStream());
+    //         dataOut.write(img);
+    //         dataOut.flush();
+    //     }catch (Exception e) {
+    //         System.out.println("Err writing image: " + e.getMessage());
+    //     }
+    // }
 
     //Reads in a long 
     public static long readLong() { 

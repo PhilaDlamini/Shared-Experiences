@@ -1,6 +1,7 @@
 #include "server.h"
 #include "list.h"
 
+int skip_counter = 0;
 
 
 int main (int argc, char *argv[]){
@@ -150,12 +151,14 @@ void run_server(int port) {
                         
 
                         /* Read in the rest of the message */
-                        Image curr_image = NULL;
+                        char *curr_image = NULL;
+                        int size;
                         if (message_type != IMAGE){
                             read_entire_message(&buffer, i, message_type, &master_set);
                         } else {
-                            curr_image = read_image(i);
-                            fprintf(stderr, "Returned from read_image\n");
+                            handle_image(i, log);
+                            // curr_image = read_image(i, &size);
+                            // fprintf(stderr, "Returned from read_image\n");
                         }
                         
                         /* TODO: put in function? */
@@ -207,8 +210,7 @@ void run_server(int port) {
                         } else if (message_type == CHAT){
                             send_chat(buffer, log, clientIDs, i, &master_set, &fdmax);
                         } else if (message_type == IMAGE){
-                            fprintf(stderr, "Before send_image\n");
-                            send_image(curr_image, log, clientIDs, i, master_set, fdmax);
+                            continue;
                         }
                     }
                 }
@@ -266,52 +268,69 @@ void run_server(int port) {
     close(master_socket); 
 }
 
-void send_chat(char *message_data, ChatLog log, List clientIDs, int port_no, fd_set *master_set, int *fdmax){
-    long name_len = strlen(message_data + 1);
-    long r_chat_len = strlen(message_data + 21);
+void send_chat(char *message_header, ChatLog log, List clientIDs, int port_no, fd_set *master_set, int *fdmax){
+    long name_len = strlen(message_header + 1);
+    long r_chat_len = strlen(message_header + 21);
 
     //Build the message struct 
     struct Message chats;
     chats.type = CHATS;
     long chat_len = htonll(r_chat_len + name_len + 1);
     memcpy(chats.data, &chat_len, sizeof(chat_len));
-    memcpy(chats.data + sizeof(chat_len), message_data + 1, name_len);
+    memcpy(chats.data + sizeof(chat_len), message_header + 1, name_len);
     chats.data[sizeof(chat_len) + name_len] = ':';
-    memcpy(chats.data + sizeof(chat_len) + name_len + 1, message_data + 21, r_chat_len);
+    memcpy(chats.data + sizeof(chat_len) + name_len + 1, message_header + 21, r_chat_len);
     chats.data[sizeof(chat_len) + name_len + r_chat_len + 1] = '\0';
    
-    // bytes_read = read(port_no, *data + 1, 28);
+    // bytes_read = read(port_no, *header + 1, 28);
     // long bytes_to_read = 0;
-    // memcpy(&bytes_read, *data + 21, 8);
+    // memcpy(&bytes_read, *header + 21, 8);
     // bytes_to_read = htonll(bytes_to_read);
-    // bytes_read = read(port_no, *data + 29, bytes_to_read);
+    // bytes_read = read(port_no, *header + 29, bytes_to_read);
 
 
 
     // printf("Message to send\n");
     // for(int i = 0; i <= 8 + name_len + r_chat_len + 1; i++) {
-    //     if(chats.data[i] == '\0') printf("0");
-    //     else printf("%c ", chats.data[i]);
+    //     if(chats.header[i] == '\0') printf("0");
+    //     else printf("%c ", chats.header[i]);
     // }
 
     ChatLog_add(log, chats.data + sizeof(chat_len));
     send_to_all(*master_set, *fdmax, chats, 11 + name_len + r_chat_len);
 }
 
-void send_image(Image to_send, ChatLog log, List clientIDs, int port_no, fd_set master_set, int fdmax){
-    fprintf(stderr, "In send image\n");
-    fd_set write_set = master_set;
-    select(fdmax + 1, NULL, &write_set, NULL, NULL);
-    for (int i = 0; i <= fdmax; i++) {
-        if (FD_ISSET(i, &write_set)){
-            int n = write(i, (char *) to_send, to_send->size + 29);
-        }
-    }
-    fprintf(stderr, "Sent image, about to enter chatlog\n");
-    ChatLog_add_image(log, to_send);
-}
+// void send_image(char* to_send, int size, ChatLog log, List clientIDs, int port_no, fd_set master_set, int fdmax){
+//     fprintf(stderr, "In send image\n");
+//     fd_set write_set = master_set;
+//     // ChatLog_add_image(log, to_send);
 
-void handle_media_controls(char message_type, char *message_data, bool paused, 
+//     printf("First 100 bytes we'll send\n");
+//     for(int i = 0; i < 100; i ++)
+//         printf("%c", to_send[i]);
+//     printf("\n");
+//     printf("Server will send %d bytes\n", size);
+
+//     select(fdmax + 1, NULL, &write_set, NULL, NULL);
+//     for (int i = 0; i <= fdmax; i++) {
+//         if (FD_ISSET(i, &write_set)){
+//             int n = write(i, to_send, size);
+
+//             //manually send chats for now
+//             long s = htonll(2);
+//             char chats[2];
+//             chats[0] = CHATS;
+//             write(i, chats, 1);
+//             write(i, &s, sizeof(long));
+//             chats[0] = ':';
+//             chats[1] = '\0';
+//             write(i, chats, 2);
+//         }
+//     }
+//     fprintf(stderr, "Sent image\n");
+// }
+
+void handle_media_controls(char message_type, char *message_header, bool paused, 
                       List clientIDs, int port_no, fd_set *master_set, 
                       int *fdmax, struct timespec video_start_time, ChatLog log, 
                       int *play_status){
@@ -326,6 +345,7 @@ void handle_media_controls(char message_type, char *message_data, bool paused,
 
     //For sending chats
     struct Message chats;
+    chats.type = CHATS;
     char *message;
     long chat_len;
 
@@ -354,14 +374,26 @@ void handle_media_controls(char message_type, char *message_data, bool paused,
         /* TODO: send backward or forward */
 
         long seconds;
-        memcpy(&seconds, message_data + 1, sizeof(seconds));
+        char direction;
+        memcpy(&seconds, message_header + 1, sizeof(seconds));
+        memcpy(&direction, message_header + 29, sizeof(direction));
+
+        if (direction == BACKWARD){
+            fprintf(stderr, "SEEKED BACKWARD\n");
+            skip_counter++;
+        } else if (direction == FORWARD) {
+            fprintf(stderr, "SEEKED FOREWARD\n");
+            skip_counter--;
+        }
+
         media_control_message.type = SEEK_MOVIE;
         memcpy(media_control_message.data, &seconds, sizeof(seconds));
         send_to_all(*master_set, *fdmax, media_control_message, 9);
-
+        
         //Build struct (perhaps this could be a function?)
         message = ":SEEKED MOVIE"; //TODO: figure out if forward/backward
         chat_len = htonll(client_name_len + strlen(message) + 1);
+
         memcpy(chats.data, &chat_len, sizeof(chat_len));
         memcpy(chats.data + sizeof(chat_len), controlling_client, client_name_len);
         memcpy(chats.data + sizeof(chat_len) + client_name_len, message, strlen(message));
@@ -375,12 +407,12 @@ void handle_media_controls(char message_type, char *message_data, bool paused,
 }
 
 void handle_client_joining(int curr_phase, int port_no, List clientIDs, 
-                           Message movie_list_message, int video_index, char *message_data, 
+                           Message movie_list_message, int video_index, char *message_header, 
                            char *video_contents, long video_size, 
                            struct timespec video_start_time, ChatLog log){
 
     struct Message read_message; 
-    memcpy(&read_message, message_data, 21);
+    memcpy(&read_message, message_header, 21);
     char *new_client = malloc(20);
     strcpy(new_client, read_message.data);
     List_add(clientIDs, new_client, port_no);
@@ -413,7 +445,8 @@ void handle_client_joining(int curr_phase, int port_no, List clientIDs,
                 struct timespec curr_time;
                 timespec_get(&curr_time, TIME_UTC);
 
-                long time_since_video_start =  curr_time.tv_sec - video_start_time.tv_sec;
+                long time_since_video_start =  curr_time.tv_sec - video_start_time.tv_sec + (10 * skip_counter);
+                fprintf(stderr, "time since video started: %ld\n", time_since_video_start);
                 time_since_video_start = htonll(time_since_video_start);
                 memcpy(start_message.data, &time_since_video_start, sizeof(long));
                 write(port_no, (char *) &start_message, 1 + sizeof(long));
@@ -437,64 +470,89 @@ void handle_client_joining(int curr_phase, int port_no, List clientIDs,
     write(port_no, (char *) &chat_log_message, 9 + log->size);
 }
 
-void read_entire_message(char **data, int port_no, char message_type, fd_set *master_set){    
+void read_entire_message(char **header, int port_no, char message_type, fd_set *master_set){    
     fprintf(stderr, "In read entire message\n");
     int bytes_read = 0;
     switch(message_type) {
         case HELLO:;
             fprintf(stderr, "Reading entire Hello\n");
-            bytes_read = read(port_no, *data + 1, 20);
+            bytes_read = read(port_no, *header + 1, 20);
             break;
         case VOTE:;
             fprintf(stderr, "Reading entire vote\n");
-            bytes_read = read(port_no, *data + 1, 1);
+            bytes_read = read(port_no, *header + 1, 1);
             break;
         case DOWNLOADED:; 
             break;
         case END_MOVIE:;
             break;
         case SEEK:;
-            bytes_read = read(port_no, *data + 1, 8);
+            bytes_read = read(port_no, *header + 1, 29);
             break;
         case CHAT:; //being handled?
-            bytes_read = read(port_no, *data + 1, 420);
+            bytes_read = read(port_no, *header + 1, 420);
             break;
         case GOODBYE:;
-            bytes_read = read(port_no, *data + 1, 20);
+            bytes_read = read(port_no, *header + 1, 20);
             break;
     }
 }
 
-Image read_image(int port_no){
-    fprintf(stderr, "In read Image\n");
-    Image new_image = malloc(sizeof(struct Image));
-    new_image->type = IMAGE;
-
-    char a[28];
+void handle_image(int port_no, ChatLog log) {
+    fprintf(stderr, "In read Image\n");    
+    char long_text[20];
+    char curr = '\0';
+    long bytes_read = 0;
+    while (curr != ':'){
+        int byte_read = read(port_no, &curr, 1);
+        fprintf(stderr, "In while loop: %c\n", curr);
+        long_text[bytes_read] = curr;
+        bytes_read += byte_read;
+    }
     
-    // int bytes_read = read(port_no, new_image + 1, 28);
-    int bytes_read = read(port_no, a, 28);
+    short long_string_length = bytes_read; /* Length of string representation of image size */
+    long_text[bytes_read] = '\0';
+    long img_size = strtol(long_text, NULL, 10);
+    printf("Img size is %ld\n", img_size);
 
-    fprintf(stderr, "Bytes read: %d\n", bytes_read);
+    //Read header
+    int header_size = 1 + bytes_read + 20;
+    char *header = malloc(header_size);
+    bzero(header, header_size);
+    header[0] = IMAGE;
+    memcpy(header + 1, long_text, bytes_read);
+    int n = read(port_no, header + 1 + bytes_read, 20);
+    printf("Bytes read for username %d\n", n);
 
-    fprintf(stderr, "Name is: %s\n", a);
+    //Read image 
+    bytes_read = 0;
+    char *bytes = malloc(img_size);
+    while (bytes_read < img_size){
+        bytes_read += read(port_no, bytes + bytes_read, img_size - bytes_read);
+    }
+    printf("Bytes read for img bytes %d\n", bytes_read);
 
+    //write back 
+    write(port_no, header, header_size);
+    write(port_no, bytes, img_size);
 
-    long bytes_to_read;
-    memcpy(new_image->client_name, a, 20);
-    memcpy(&bytes_to_read, a + 20, sizeof(long));
-    printf("size %ld\n", htonll(bytes_to_read));
-    new_image->size = htonll(bytes_to_read);
+    //Write the chat
+    char chats[11];
+    chats[0] = CHATS;
+    long chat_size = htonll(2);
+    char *str = ":\0";
+    memcpy(chats + 1 , &chat_size, sizeof(long));
+    memcpy(chats + 9, str, 2);
+    write(port_no, chats, 11); 
+
+    //Save to log
+    char *to_save = malloc(header_size + img_size);
+    memcpy(to_save, header, header_size);
+    memcpy(to_save + header_size, bytes, img_size);
     
-
-    printf("new image name: %s\n", new_image->client_name);
-    printf("new image size: %ld\n", new_image->size);
-
-    char *image_contents = malloc(new_image->size);
-    bytes_read = read(port_no, image_contents, bytes_to_read);
-    new_image->contents = image_contents;
-    fprintf(stderr, "Image size: %ld\n", new_image->size);
-    return new_image;
+    ChatLog_add_image(log, to_save, header_size + img_size); 
+    free(to_save);
+    free(header);
 }
 
 void send_movie_to_all(fd_set *master_set, int *fdmax, List clientIDs, 
