@@ -49,6 +49,7 @@ void run_server(int port) {
             ChatLog_free(log);
             log = ChatLog_new();
         }
+        skip_counter = 0; /* reset the skip counter */
         
         fprintf(stderr, "At top while loop\n");
         video_list vds = get_videos();
@@ -373,17 +374,21 @@ void handle_media_controls(char message_type, char *message_header, bool paused,
         
         /* TODO: send backward or forward */
 
-        long seconds;
+        long seconds = 0;
         char direction;
         memcpy(&seconds, message_header + 1, sizeof(seconds));
         memcpy(&direction, message_header + 29, sizeof(direction));
 
         if (direction == BACKWARD){
+            message = ":SEEKED BACKWARD";
             fprintf(stderr, "SEEKED BACKWARD\n");
-            skip_counter++;
-        } else if (direction == FORWARD) {
-            fprintf(stderr, "SEEKED FOREWARD\n");
+            fprintf(stderr, "Before decrementing skip counter: %ld\n", skip_counter);
             skip_counter--;
+            fprintf(stderr, "After decrementing skip counter: %ld\n", skip_counter);
+        } else if (direction == FORWARD) {
+            message = ":SEEKED FORWARD";
+            fprintf(stderr, "SEEKED FOREWARD\n");
+            skip_counter++;
         }
 
         media_control_message.type = SEEK_MOVIE;
@@ -391,7 +396,7 @@ void handle_media_controls(char message_type, char *message_header, bool paused,
         send_to_all(*master_set, *fdmax, media_control_message, 9);
         
         //Build struct (perhaps this could be a function?)
-        message = ":SEEKED MOVIE"; //TODO: figure out if forward/backward
+        // message = ":SEEKED MOVIE"; //TODO: figure out if forward/backward
         chat_len = htonll(client_name_len + strlen(message) + 1);
 
         memcpy(chats.data, &chat_len, sizeof(chat_len));
@@ -444,12 +449,14 @@ void handle_client_joining(int curr_phase, int port_no, List clientIDs,
                 start_message.type = START;
                 struct timespec curr_time;
                 timespec_get(&curr_time, TIME_UTC);
-
-                long time_since_video_start =  curr_time.tv_sec - video_start_time.tv_sec + (10 * skip_counter);
+                
+                long time_since_video_start =  max((curr_time.tv_sec - video_start_time.tv_sec + (10 * skip_counter)), 0);
                 fprintf(stderr, "time since video started: %ld\n", time_since_video_start);
+                fprintf(stderr, "skip counter: %ld\n", skip_counter);
                 time_since_video_start = htonll(time_since_video_start);
                 memcpy(start_message.data, &time_since_video_start, sizeof(long));
                 write(port_no, (char *) &start_message, 1 + sizeof(long));
+                
             }
         }
     }
@@ -551,8 +558,11 @@ void handle_image(int port_no, ChatLog log) {
     memcpy(to_save + header_size, bytes, img_size);
     
     ChatLog_add_image(log, to_save, header_size + img_size); 
+    fprintf(stderr, "After chatlog_add_image\n");
     free(to_save);
+    fprintf(stderr, "After chatlog_add_image 2\n");
     free(header);
+    fprintf(stderr, "end of handle image\n");
 }
 
 void send_movie_to_all(fd_set *master_set, int *fdmax, List clientIDs, 

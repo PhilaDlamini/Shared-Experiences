@@ -74,7 +74,7 @@ public class MoviePlayer {
         
         mediaPlayer.setOnReady(() -> {
             //Send Downloaded message
-            App.write(new char[]{App.DOWNLOADED}, 1);
+            App.write(new byte[]{App.DOWNLOADED}, 1);
             mediaView.setMediaPlayer(mediaPlayer);
         }); 
 
@@ -82,7 +82,7 @@ public class MoviePlayer {
             System.out.println("finished playing media");
 
             //Send END_MOVIE message
-            App.write(new char[]{App.END_MOVIE}, 1);
+            App.write(new byte[]{App.END_MOVIE}, 1);
             mediaPlayer.dispose();
         });
 
@@ -228,16 +228,16 @@ public class MoviePlayer {
         sendMesage.setOnAction(e -> {
             System.out.println("Sending message: " + textInput.getText());
 
+             //Also send the image 
+             if(imageSelected)
+             sendImage();
+
             //Ensure message is less than 400 char
             String message = textInput.getText();
             int n = message.length();
             if(n > 0 && n < 400) {
                 sendChat(App.userName, message);
             } else System.out.println("Chat not set: message size == 0 or >= 400 chars");
-
-            //Also send the image 
-            if(imageSelected)
-                sendImage();
             
             //Reset the field
             textInput.setText("");
@@ -355,11 +355,11 @@ public class MoviePlayer {
 
     //Sends goobye message to server 
     private static void sendGoodbye(String userName) {
-        char[] hello = new char[21];
+        byte[] hello = new byte[21];
         hello[0] = App.GOODBYE;
 
         for(int i = 0; i < userName.length(); i++) {
-            hello[i + 1] = userName.charAt(i);
+            hello[i + 1] = (byte) userName.charAt(i);
         }
 
         hello[userName.length() + 1] = '\0';
@@ -368,11 +368,11 @@ public class MoviePlayer {
 
     //Sends the toggle message to server 
     private static void sendToggle(String userName) {
-    char[] toggle = new char[21];
+    byte[] toggle = new byte[21];
     toggle[0] = App.TOGGLE;
 
     for(int i = 0; i < userName.length(); i++) {
-        toggle[i + 1] = userName.charAt(i);
+        toggle[i + 1] = (byte) userName.charAt(i);
     }
 
     toggle[userName.length() + 1] = '\0';
@@ -381,17 +381,17 @@ public class MoviePlayer {
 
     //Sends the chat message 
     private static void sendChat(String sender, String message) {
-        char[] data = new char[421];
+        byte[] data = new byte[421];
         data[0] = App.CHAT;
 
         //Copy over the name
         for(int i = 0; i < sender.length(); i++)
-            data[i + 1] = sender.charAt(i);  
+            data[i + 1] = (byte) sender.charAt(i);  
         data[sender.length() + 1] = '\0';
 
         //copy over the message
         for(int i = 0; i < message.length(); i++) 
-            data[i + 21] = message.charAt(i);
+            data[i + 21] = (byte) message.charAt(i);
         data[message.length() + 21] = '\0';
         
         App.write(data, 421);
@@ -402,25 +402,25 @@ public class MoviePlayer {
     private static void sendSeek(String userName, long s, int dir) {
 
         //The data to write
-        char[] data = new char[30];
+        byte[] data = new byte[30];
         data[0] = App.SEEK;
 
         //Put the long
         ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
         buffer.putLong(0, s);
         buffer.flip();
-        String arr = new String(buffer.array());
+        byte[] arr = buffer.array();
 
         for(int i = 0; i < 8; i++)
-            data[i + 1] = arr.charAt(i);
+            data[i + 1] = arr[i];
         
         //Put the name in as well
         for(int i = 0; i < userName.length(); i++) {
-            data[i + 9] = userName.charAt(i);
+            data[i + 9] = (byte) userName.charAt(i);
         }
 
         data[userName.length() + 9] = '\0';
-        data[29] = (char) dir;
+        data[29] = (byte) dir;
         App.write(data, 30);
     }
 
@@ -436,7 +436,6 @@ public class MoviePlayer {
             App.chats
             .stream()
             .map(m -> {
-                System.out.println("Curr message " + m);
 
                 if(m.length() > 2) {
                     String[] message = m.split(":");
@@ -446,7 +445,8 @@ public class MoviePlayer {
                         chat.equals("PAUSED MOVIE") ||
                         chat.equals("RESUMED MOVIE") ||
                         chat.equals("LEFT") ||
-                        chat.equals("SEEKED MOVIE");
+                        chat.equals("SEEKED BACKWARD") ||
+                        chat.equals("SEEKED FORWARD");
 
                     Text name = new Text(person + ":");
                     name.setFill(controls ? Color.web("#EF5350") : Color.web("#263238"));
@@ -523,24 +523,24 @@ public class MoviePlayer {
             System.out.println("image size was: " + size);
 
             //Create the arr to write 
-            char[] arr = new char[img.length + size.length() + 22];
+            byte[] arr = new byte[img.length + size.length() + 22];
 
             //Write the type
             arr[0] = App.IMAGE;
 
             //Write the length
             for(int i = 0; i < size.length(); i++)
-                arr[i + 1] = size.charAt(i);
+                arr[i + 1] = (byte) size.charAt(i);
             arr[size.length() + 1] = ':';
 
             //Write name
             for(int i = 0; i < App.userName.length(); i++)
-                arr[i + size.length() + 2] = App.userName.charAt(i);
+                arr[i + size.length() + 2] = (byte) App.userName.charAt(i);
 
             //Write image bytes 
             byte[] copy = new byte[img.length];
             for(int i = 0; i < img.length; i++) {
-                arr[i + size.length() + 22] = (char) img[i];
+                arr[i + size.length() + 22] = img[i];
                 copy[i] = (byte) arr[i + size.length() + 22];
             }
             Path path2 = Paths.get("sent.jpg");
@@ -549,10 +549,7 @@ public class MoviePlayer {
             for(int i = 0; i < 100; i++)
                 System.out.print(arr[i]);
             App.write(arr, size.length() + 22);
-
-            DataOutputStream dataOut = new DataOutputStream(App.socket.getOutputStream());
-            dataOut.write(img);
-            dataOut.flush();
+            App.writeImage(img);
 
             imageSelected = false;
             System.out.println("Client sent " + (img.length + size.length() + 22) + "bytes");  

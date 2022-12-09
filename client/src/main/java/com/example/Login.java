@@ -65,11 +65,11 @@ public class Login {
 
     //Send hello message to server 
     private static void sendHello(String userName) {
-        char[] hello = new char[21];
+        byte[] hello = new byte[21];
         hello[0] = App.HELLO;
 
         for(int i = 0; i < userName.length(); i++) {
-            hello[i + 1] = userName.charAt(i);
+            hello[i + 1] = (byte) userName.charAt(i);
         }
 
         hello[userName.length() + 1] = '\0';

@@ -27,11 +27,11 @@ public class Selection {
         button.setOnAction(e -> {
 
             //Get selected item
-            char index = (char) listView.getSelectionModel().getSelectedIndex();
+            byte index = (byte) listView.getSelectionModel().getSelectedIndex();
             System.out.println("Voted for movie of index " + (char) (index + 48));
 
             //Send movie selection to server
-            App.write(new char[]{App.VOTE, index}, 2);
+            App.write(new byte[]{App.VOTE, index}, 2);
             System.out.println("Awaiting selected movie info..");
         });
 

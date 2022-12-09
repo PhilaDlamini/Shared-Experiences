@@ -75,13 +75,30 @@ void ChatLog_add(ChatLog log, char *to_add){
 
 void ChatLog_add_image(ChatLog log, char *image, long bytes_to_add){
     if (log->images_size + bytes_to_add >= log->images_capacity){
-        log->capacity = (log->images_capacity * 2) + bytes_to_add;
+        fprintf(stderr, "In expansion\n");
+        log->images_capacity = (log->images_capacity * 2) + bytes_to_add;
         log->images = realloc(log->images, log->images_capacity);
+        if (log->images == NULL){
+            fprintf(stderr, "Realloc Failed\n");
+        }
     }
-    memcpy(log->images + log->images_size, image, bytes_to_add);
+    fprintf(stderr, "chat_log add image 1\n");
+    fprintf(stderr, "Log->images_size: %ld\n", log->images_size);
+    fprintf(stderr, "Log->capacity: %ld\n", log->capacity);
+    fprintf(stderr, "bytes_to_add: %ld\n", bytes_to_add);
+
+    memcpy(log->images + (log->images_size), image, bytes_to_add);
+    // for (long i = 0; i < bytes_to_add; i++){
+    //     fprintf(stderr, "i is: %ld\n", i);
+    //     log->images[log->images_size + i] = image[i];
+    // }
+
+    fprintf(stderr, "chat_log add image 2\n");
     log->images_size += bytes_to_add;
+    fprintf(stderr, "chat_log add image 3\n");
     char *image_delimiter = ":";
     ChatLog_add(log, image_delimiter);
+    fprintf(stderr, "chat_log add image 4\n");
 };
 
 void ChatLog_free(ChatLog log){

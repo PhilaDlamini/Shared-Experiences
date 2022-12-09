@@ -16,7 +16,8 @@ import java.util.LinkedList;
 public class App extends Application {
     private static Control control;
     public static Socket socket;
-    private static PrintWriter out;
+    private static DataOutputStream out;
+    // private static PrintWriter out;
     private static InputStream in;
     private static Stage stage;
     public static final int SCREEN_W = 900, SCREEN_H = 600, VIDEO_WIDTH = 500,
@@ -59,27 +60,15 @@ public class App extends Application {
         return buffer;
     }
 
-    //Writes a long
-    // public static void writeLong(long l) {
-    //     try {
-    //         DataOutputStream dataOut = new DataOutputStream(socket.getOutputStream());
-    //         dataOut.writeLong(l);
-    //         dataOut.flush();
-    //     }catch (Exception e) {
-    //         System.out.println("Err writing long: " + e.getMessage());
-    //     }
-    // }
-
-    // //temp write image 
-    // public static void writeImage(byte[] img) {
-    //     try {
-    //         DataOutputStream dataOut = new DataOutputStream(socket.getOutputStream());
-    //         dataOut.write(img);
-    //         dataOut.flush();
-    //     }catch (Exception e) {
-    //         System.out.println("Err writing image: " + e.getMessage());
-    //     }
-    // }
+    //temp write image 
+    public static void writeImage(byte[] img) {
+        try {
+            out.write(img);
+            out.flush();
+        }catch (Exception e) {
+            System.out.println("Err writing image: " + e.getMessage());
+        }
+    }
 
     //Reads in a long 
     public static long readLong() { 
@@ -95,9 +84,14 @@ public class App extends Application {
     }
 
     //Writes the specified number of bytes
-    public static void write(char[] data, int n) {
-        out.write(data, 0, n);
-        out.flush();
+    public static void write(byte[] data, int n) {
+        try {
+            out.write(data, 0, n);
+            out.flush();
+        } catch(IOException e) {
+            System.out.println("Err sending message " + e.getMessage());
+        }
+        
     }
 
     //Switches to the specified screen
@@ -174,7 +168,8 @@ public class App extends Application {
         PORT = Integer.parseInt(args[0]);
         try {
             socket = new Socket(InetAddress.getByName("localhost").getHostAddress(), PORT);
-            out = new PrintWriter(socket.getOutputStream(), true);
+            // out = new PrintWriter(socket.getOutputStream(), true);
+            out = new DataOutputStream(socket.getOutputStream());
             in = socket.getInputStream();
         } catch (Exception e) {
             System.out.println("Client encountered error: " + e.getMessage());
