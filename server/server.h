@@ -32,6 +32,8 @@ typedef struct Message Message;
 
 #define ACCEPTED_VIDEO_FORMAT ".mp4"
 #define MAX_MESSAGE_LENGTH 1024
+#define MAX_VIDEO_COUNT 255
+#define MAX_VIDEO_LIST_LENGTH 800
 #define SECONDS_TO_VOTE 60
 
 #define VOTING_PHASE 1
@@ -74,11 +76,11 @@ typedef struct Message Message;
 void run_server(int port);
 int make_socket(int port);
 
-void handle_client_joining(int curr_phase, int port_no, List clientIDs, 
+void handle_client_joining(int curr_phase, bool *paused, int port_no, List clientIDs, 
                            Message movie_list_message, int video_index, char *message_data, 
                            char *video_contents, long video_size, 
                            struct timespec video_start_time, ChatLog log);
-void handle_media_controls(char message_type, char *message_data, bool paused, 
+void handle_media_controls(char message_type, char *message_data, bool *paused, 
                            List clientIDs, int port_no, fd_set *master_set, 
                            int *fdmax, struct timespec video_start_time, ChatLog log, 
                            int *play_status);

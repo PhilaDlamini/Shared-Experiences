@@ -87,6 +87,12 @@ void run_server(int port) {
             int video_string_length = 0;
             int i = 0;
             for (i = 0; i < vds.video_count; i++){
+                if (video_string_length + strlen(vds.videos[i]) > MAX_VIDEO_LIST_LENGTH){
+                    fprintf(stderr, "Error, the combined length of all the " 
+                                     "video names is too great for the "
+                                     "server to handle\n");
+                    exit(EXIT_FAILURE);
+                }
                 strcpy(movie_list_message.data + video_string_length, vds.videos[i]);
                 video_string_length += strlen(vds.videos[i]) + 1; /* + 1 for \0 */
             }
@@ -97,6 +103,7 @@ void run_server(int port) {
             if (clientIDs->size > 0){
                 send_to_all(master_set, fdmax, movie_list_message, 
                             801);
+                
             }
 
             /* Tracks clients who've voted and prevents one client making over 1 vote */
@@ -147,6 +154,7 @@ void run_server(int port) {
                             fprintf(stderr, "In disconenct client\n");
                             close(i);
                             FD_CLR(i, &master_set);
+                            List_remove(clientIDs, List_getClientID(clientIDs, i));
                             // TODO: disconnect client
                         }
                         
@@ -202,12 +210,12 @@ void run_server(int port) {
                             vote_tally[video_index]++;
                             List_add(voted, NULL, i);
                         } else if (message_type == HELLO) {
-                            handle_client_joining(curr_phase, i, clientIDs, 
+                            handle_client_joining(curr_phase, &paused, i, clientIDs, 
                                                   movie_list_message, video_index, buffer, 
                                                   video_contents, video_size, 
                                                   playing_start_time, log);
                         } else if (curr_phase == PLAYING_PHASE && (message_type == TOGGLE || message_type == SEEK)){
-                            handle_media_controls(message_type, buffer, paused, clientIDs, i, &master_set, &fdmax, playing_start_time, log, &play_status);
+                            handle_media_controls(message_type, buffer, &paused, clientIDs, i, &master_set, &fdmax, playing_start_time, log, &play_status);
                         } else if (message_type == CHAT){
                             send_chat(buffer, log, clientIDs, i, &master_set, &fdmax);
                         } else if (message_type == IMAGE){
@@ -254,8 +262,17 @@ void run_server(int port) {
                 long time_since_video_start = 0;
                 //memcpy(start_message.data, &time_since_video_start, sizeof(long));
                 memcpy(start_message.data, &time_since_video_start, sizeof(long));
+                
+                if (paused){
+                    const int pause_int = 0;
+                    memcpy(start_message.data + sizeof(long), &pause_int, 1);
+                } else {
+                    const int play_int = 1;
+                    memcpy(start_message.data + sizeof(long), &play_int, 1);
+                }
+                
                 printf("About to send start to all\n");
-                send_to_all(master_set, fdmax, start_message, 1 + sizeof(long));
+                send_to_all(master_set, fdmax, start_message, 2 + sizeof(long));
                 fprintf(stderr, "finished sending start to all\n");
             } else if ((curr_phase == PLAYING_PHASE && ended_count >= clientIDs->size) 
                        || clientIDs->size == 0){
@@ -331,7 +348,7 @@ void send_chat(char *message_header, ChatLog log, List clientIDs, int port_no, f
 //     fprintf(stderr, "Sent image\n");
 // }
 
-void handle_media_controls(char message_type, char *message_header, bool paused, 
+void handle_media_controls(char message_type, char *message_header, bool *paused, 
                       List clientIDs, int port_no, fd_set *master_set, 
                       int *fdmax, struct timespec video_start_time, ChatLog log, 
                       int *play_status){
@@ -351,6 +368,7 @@ void handle_media_controls(char message_type, char *message_header, bool paused,
     long chat_len;
 
     if (message_type == TOGGLE){        
+        *paused = !(*paused);
         media_control_message.type = TOGGLE_MOVIE;
         send_to_all(*master_set, *fdmax, media_control_message, 1);
 
@@ -411,7 +429,7 @@ void handle_media_controls(char message_type, char *message_header, bool paused,
     ChatLog_add(log, chats.data + sizeof(chat_len));
 }
 
-void handle_client_joining(int curr_phase, int port_no, List clientIDs, 
+void handle_client_joining(int curr_phase, bool *paused, int port_no, List clientIDs, 
                            Message movie_list_message, int video_index, char *message_header, 
                            char *video_contents, long video_size, 
                            struct timespec video_start_time, ChatLog log){
@@ -448,14 +466,24 @@ void handle_client_joining(int curr_phase, int port_no, List clientIDs,
                 Message start_message; 
                 start_message.type = START;
                 struct timespec curr_time;
-                timespec_get(&curr_time, TIME_UTC);
-                
+                timespec_get(&curr_time, TIME_UTC);                
                 long time_since_video_start =  max((curr_time.tv_sec - video_start_time.tv_sec + (10 * skip_counter)), 0);
                 fprintf(stderr, "time since video started: %ld\n", time_since_video_start);
                 fprintf(stderr, "skip counter: %ld\n", skip_counter);
                 time_since_video_start = htonll(time_since_video_start);
                 memcpy(start_message.data, &time_since_video_start, sizeof(long));
-                write(port_no, (char *) &start_message, 1 + sizeof(long));
+
+                if (*paused){
+                    const int pause_int = 0;
+                    fprintf(stderr, "Sending state of %d to new client\n", pause_int);
+                    memcpy(start_message.data + sizeof(long), &pause_int, 1);
+                } else {
+                    const int play_int = 1;
+                    fprintf(stderr, "Sending state of %d to new client\n", play_int);
+                    memcpy(start_message.data + sizeof(long), &play_int, 1);
+                }
+
+                write(port_no, (char *) &start_message, 2 + sizeof(long));
                 
             }
         }
@@ -468,13 +496,15 @@ void handle_client_joining(int curr_phase, int port_no, List clientIDs,
     long chat_log_size_to_send = htonll(log->size);
     memcpy(chat_log_message.data, &chat_log_size_to_send, 
            sizeof(chat_log_size_to_send));
-    memcpy(chat_log_message.data + sizeof(chat_log_size_to_send), log->chats, log->size);
+    //memcpy(chat_log_message.data + sizeof(chat_log_size_to_send), log->chats, log->size);
     
     char *arr = (char *) &chat_log_message;
     for(int i = 0; i < (9 + log->size); i++) {
         printf("%c ", (arr[i] + '0'));
     }
-    write(port_no, (char *) &chat_log_message, 9 + log->size);
+    //write(port_no, (char *) &chat_log_message, 9 + log->size);
+    write(port_no, (char *) &chat_log_message, 9);
+    write(port_no, log->chats, log->size);
 }
 
 void read_entire_message(char **header, int port_no, char message_type, fd_set *master_set){    
@@ -642,6 +672,16 @@ video_list get_videos(){
         }
     }
     closedir(d);
+
+     if (video_count > MAX_VIDEO_COUNT){
+        fprintf(stderr, "Error: Number of videos exceeds maximum of %d\n", 
+                MAX_VIDEO_COUNT);
+        exit(EXIT_FAILURE);
+    } else if (video_count == 0){
+        fprintf(stderr, "Error: No videos of the accepted format found in directory of server\n");
+        exit(EXIT_FAILURE);   
+    }
+
     videos = realloc(videos, video_count * sizeof(char *));
     video_list vds = {.videos = videos, .video_count = video_count};
     fprintf(stderr, "Video count is %d\n", video_count);
