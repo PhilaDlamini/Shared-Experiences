@@ -20,8 +20,9 @@ public class App extends Application {
     // private static PrintWriter out;
     private static InputStream in;
     private static Stage stage;
+    public static int toggleState;
     public static final int SCREEN_W = 900, SCREEN_H = 600, VIDEO_WIDTH = 500,
-    VIDEO_HEIGHT = 350;
+    VIDEO_HEIGHT = 350, PAUSED = 0, PLAYING = 1;
     public static int PORT;
  
     //The message types 

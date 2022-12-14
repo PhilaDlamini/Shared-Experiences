@@ -101,6 +101,9 @@ public class Control implements Runnable {
 
                     //Read in the start duration
                     App.startDuration = App.readLong();
+                    App.toggleState = App.read(1)[0];
+                    System.out.println("state is " + App.toggleState);
+                    System.out.flush();
                     MoviePlayer.start();
                     break;
 

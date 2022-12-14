@@ -159,7 +159,9 @@ public class MoviePlayer {
     public static void start() {
         System.out.println("Movie will start playing at " + App.startDuration + " seconds");
         mediaPlayer.seek(Duration.seconds(App.startDuration));      
-        mediaPlayer.play();
+        
+        if(App.toggleState == App.PLAYING)
+            mediaPlayer.play();
 
         //Start the progress thread
         final Thread thread = new Thread(progressTask);
@@ -175,9 +177,13 @@ public class MoviePlayer {
 
     //Toggles player
     public static void togglePlayer() {
-        if(mediaPlayer.getStatus() == Status.PLAYING) 
+        if(App.toggleState == App.PLAYING) {
             mediaPlayer.pause();
-        else mediaPlayer.play();
+            App.toggleState = App.PAUSED;
+        } else {
+            mediaPlayer.play();
+            App.toggleState = App.PLAYING;
+        }
     }
 
     //Displays the mediaplayer
@@ -228,19 +234,20 @@ public class MoviePlayer {
         sendMesage.setOnAction(e -> {
             System.out.println("Sending message: " + textInput.getText());
 
-             //Also send the image 
-             if(imageSelected)
-             sendImage();
-
             //Ensure message is less than 400 char
             String message = textInput.getText();
             int n = message.length();
             if(n > 0 && n < 400) {
                 sendChat(App.userName, message);
             } else System.out.println("Chat not set: message size == 0 or >= 400 chars");
-            
+        
+             //Also send the image 
+            if(imageSelected)
+                sendImage();
+
             //Reset the field
             textInput.setText("");
+            
         });
 
         HBox send = new HBox(15, inputs, sendMesage);
@@ -322,8 +329,8 @@ public class MoviePlayer {
                 System.out.println("Image removed");
             }
         });
+        row.getChildren().removeAll(row.getChildren());
         row.getChildren().addAll(imagePane);
-
         return row;
     } 
 
@@ -434,6 +441,8 @@ public class MoviePlayer {
         scroll.getChildren().removeAll(scroll.getChildren());
         scroll.getChildren().addAll(
             App.chats
+            .stream() //if stream source changes, throws CME
+            .collect(Collectors.toList())
             .stream()
             .map(m -> {
 
@@ -465,7 +474,6 @@ public class MoviePlayer {
                     System.out.println("Rendering image!");
                     ImageInfo info = App.images.get(App.imageIndex++);
                     ImageView img = new ImageView(info.getURL());
-                    System.out.println("image path " + info.getURL());
                     img.setPreserveRatio(true);
                     img.setFitHeight(250);
                     img.setFitWidth(250);
@@ -473,8 +481,7 @@ public class MoviePlayer {
                     clip.setArcWidth(30);
                     clip.setArcHeight(30);
                     img.setClip(clip);
-                    
-                    Text name = new Text(info.getSender());
+                    Text name = new Text(info.getSender() + ":");
                     name.setFill(Color.web("#263238"));
                     name.setFont(Font.font("Verdana", FontWeight.BOLD,null, 13));
     
